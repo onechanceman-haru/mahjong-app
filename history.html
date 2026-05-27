@@ -689,7 +689,7 @@ function startEditGame(gid) {
         <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
         <span style="color:var(--dim)">→</span>
         <span style="font-size:12px;color:var(--muted)">修正後：</span>
-        <input type="number" inputmode="decimal" class="edit-input" id="edit-score-${gid}-${i}" value="${r.scorePt}">
+        <input type="text" class="edit-input" id="edit-score-${gid}-${i}" value="${r.scorePt}">
         <span style="font-size:12px;color:var(--muted)">pt</span>
       </div>
     </div>`;
@@ -770,7 +770,7 @@ function startEditChip(idx) {
         <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
         <span style="color:var(--dim)">→</span>
         <span style="font-size:12px;color:var(--muted)">修正後：</span>
-        <input type="number" inputmode="decimal" class="edit-input" id="chip-edit-${idx}-${i}" value="${c.chip_count}">
+        <input type="text" class="edit-input" id="chip-edit-${idx}-${i}" value="${c.chip_count}">
         <span style="font-size:12px;color:var(--muted)">枚</span>
       </div>
     </div>`;

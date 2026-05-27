@@ -89,6 +89,10 @@
     .chip-input-field { width:100px; flex-shrink:0; }
     .chip-sum-display { font-size:13px; font-weight:700; margin-top:10px; padding:6px 10px; border-radius:8px; background:#f9fafb; }
 
+    .sign-btn { width:38px; height:38px; border:none; border-radius:8px; font-size:17px; font-weight:900; cursor:pointer; flex-shrink:0; font-family:inherit; line-height:1; }
+    .sign-btn.positive { background:rgba(16,185,129,0.12); color:var(--success); }
+    .sign-btn.negative { background:rgba(239,68,68,0.12); color:var(--danger); }
+
     .player-list-item { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
     .player-list-item:last-child { border-bottom:none; }
     .player-list-name { font-size:16px; font-weight:700; color:var(--text); }
@@ -447,7 +451,7 @@ function updateRankPointsUI() {
     Array.from({length: n}, (_, i) => `
       <div class="rank-pt-row">
         <span class="rank-pt-label">${labels[i]}</span>
-        <input type="number" inputmode="decimal" class="rank-pt-input"
+        <input type="text" class="rank-pt-input"
                value="${cfg.rankPoints[i] !== undefined ? cfg.rankPoints[i] : defs[i]}"
                oninput="cfg.rankPoints[${i}]=parseInt(this.value)||0; updateRankSum()">
         <span class="rank-pt-suffix">pt</span>
@@ -524,9 +528,10 @@ function buildGameRows() {
     const player = players.find(p => String(p.id) === String(pid));
     return `<div class="game-row">
       <div class="game-row-name">${esc(player ? player.name : pid)}</div>
+      <button type="button" class="sign-btn positive" id="sign-${pid}" onclick="toggleDiffSign('${pid}')">＋</button>
       <div class="game-row-input">
-        <input type="number" inputmode="decimal" class="form-input"
-               placeholder="例: -2000" id="diff-${pid}" oninput="updateDiffSum()">
+        <input type="tel" class="form-input"
+               placeholder="0" id="diff-${pid}" oninput="updateDiffSum()">
       </div>
       <span class="game-row-suffix">pt</span>
     </div>`;
@@ -540,11 +545,8 @@ function buildGameRows() {
 function updateDiffSum() {
   let sum = 0, filled = 0;
   cfg.selectedPids.forEach(pid => {
-    const inp = document.getElementById(`diff-${pid}`);
-    if (inp && inp.value !== '') {
-      const v = parseInt(inp.value);
-      if (!isNaN(v)) { sum += v; filled++; }
-    }
+    const v = getDiffValue(pid);
+    if (v !== null) { sum += v; filled++; }
   });
   const el   = document.getElementById('diff-sum');
   const hint = document.getElementById('diff-hint');
@@ -566,6 +568,24 @@ function updateDiffSum() {
   }
 }
 
+function toggleDiffSign(pid) {
+  const btn = document.getElementById(`sign-${pid}`);
+  if (!btn) return;
+  const isPos = btn.classList.contains('positive');
+  btn.classList.toggle('positive', !isPos);
+  btn.classList.toggle('negative', isPos);
+  btn.textContent = isPos ? '－' : '＋';
+  updateDiffSum();
+}
+
+function getDiffValue(pid) {
+  const inp = document.getElementById(`diff-${pid}`);
+  const btn = document.getElementById(`sign-${pid}`);
+  if (!inp || inp.value === '') return null;
+  const abs = parseInt(inp.value.replace(/[^0-9]/g, '')) || 0;
+  return btn && btn.classList.contains('negative') ? -abs : abs;
+}
+
 async function submitGame() {
   if (!cfg.groupDate) { toast('グループを選択してください', 'error'); return; }
   if (cfg.selectedPids.length !== cfg.playerCount) {
@@ -584,10 +604,8 @@ async function submitGame() {
   let sum = 0;
   const entries = [];
   for (const pid of cfg.selectedPids) {
-    const inp = document.getElementById(`diff-${pid}`);
-    if (!inp || inp.value === '') { toast('全員の差分を入力してください', 'error'); return; }
-    const diff = parseInt(inp.value);
-    if (isNaN(diff)) { toast('有効な数値を入力してください', 'error'); return; }
+    const diff = getDiffValue(pid);
+    if (diff === null) { toast('全員の差分を入力してください', 'error'); return; }
     sum += diff;
     entries.push({ player_id: pid, diff });
   }
@@ -658,6 +676,8 @@ function continueInput() {
   cfg.selectedPids.forEach(pid => {
     const inp = document.getElementById(`diff-${pid}`);
     if (inp) inp.value = '';
+    const btn = document.getElementById(`sign-${pid}`);
+    if (btn) { btn.classList.remove('negative'); btn.classList.add('positive'); btn.textContent = '＋'; }
   });
   updateRankSum();
   updateDiffSum();
@@ -698,8 +718,9 @@ function renderChipInputs() {
     const player = players.find(p => String(p.id) === String(pid));
     return `<div class="chip-input-row">
       <span class="chip-input-name">${esc(player ? player.name : '?')}</span>
-      <input type="number" inputmode="decimal" class="form-input chip-input-field"
-             id="chipval-${pid}" placeholder="枚数" oninput="updateChipSum()">
+      <button type="button" class="sign-btn positive" id="chip-sign-${pid}" onclick="toggleChipSign('${pid}')">＋</button>
+      <input type="tel" class="form-input chip-input-field"
+             id="chipval-${pid}" placeholder="0" oninput="updateChipSum()">
     </div>`;
   }).join('') + `<div class="chip-sum-display" id="chip-sum-display"></div>`;
   updateChipSum();
@@ -708,8 +729,8 @@ function renderChipInputs() {
 function updateChipSum() {
   let sum = 0;
   selectedChipPids.forEach(pid => {
-    const inp = document.getElementById(`chipval-${pid}`);
-    if (inp && inp.value !== '') sum += parseInt(inp.value) || 0;
+    const v = getChipValue(pid);
+    if (v !== null) sum += v;
   });
   const el = document.getElementById('chip-sum-display');
   if (el) {
@@ -721,6 +742,24 @@ function updateChipSum() {
   if (btn) btn.disabled = (sum !== 0);
 }
 
+function toggleChipSign(pid) {
+  const btn = document.getElementById(`chip-sign-${pid}`);
+  if (!btn) return;
+  const isPos = btn.classList.contains('positive');
+  btn.classList.toggle('positive', !isPos);
+  btn.classList.toggle('negative', isPos);
+  btn.textContent = isPos ? '－' : '＋';
+  updateChipSum();
+}
+
+function getChipValue(pid) {
+  const inp = document.getElementById(`chipval-${pid}`);
+  const btn = document.getElementById(`chip-sign-${pid}`);
+  if (!inp || inp.value === '') return null;
+  const abs = parseInt(inp.value.replace(/[^0-9]/g, '')) || 0;
+  return btn && btn.classList.contains('negative') ? -abs : abs;
+}
+
 async function submitChips() {
   if (!selectedChipGid) { toast('グループを選択してください', 'error'); return; }
   if (!selectedChipPids.length) { toast('プレイヤーを選択してください', 'error'); return; }
@@ -729,9 +768,8 @@ async function submitChips() {
   const unit = parseInt(document.getElementById('chip-unit').value) || 0;
   const entries = [];
   for (const pid of selectedChipPids) {
-    const inp = document.getElementById(`chipval-${pid}`);
-    if (!inp || inp.value === '') { toast('全員の枚数を入力してください', 'error'); return; }
-    const chip_count = parseInt(inp.value) || 0;
+    const chip_count = getChipValue(pid);
+    if (chip_count === null) { toast('全員の枚数を入力してください', 'error'); return; }
     entries.push({ date: g.date, group_name: g.name, player_id: pid, chip_count, chip_pt: chip_count * unit });
   }
   const btn = document.getElementById('chip-submit-btn');
