@@ -757,7 +757,7 @@ function startEditChip(idx) {
   viewEl.innerHTML =
     `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px">
       <span style="font-size:12px;color:var(--muted)">チップ単価：</span>
-      <input type="number" inputmode="numeric" class="edit-input" id="chip-edit-unit-${idx}" value="${derivedUnit}" style="width:80px">
+      <input type="number" inputmode="decimal" class="edit-input" id="chip-edit-unit-${idx}" value="${derivedUnit}" style="width:80px">
       <span style="font-size:12px;color:var(--muted)">pt/枚</span>
     </div>` +
   cg.records.map((c, i) => {
