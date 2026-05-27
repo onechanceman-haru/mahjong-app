@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:90px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; color:var(--text); }
+    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .stat-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.05); border-radius:14px; padding:16px; text-align:center; }
+    .stat-value { font-size:32px; font-weight:900; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .stat-label { font-size:12px; color:var(--muted); margin-top:3px; }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:16px; margin-bottom:12px; }
+    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .card-header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .card-header-row .card-header { margin-bottom:0; }
+
+    .tab-bar { display:flex; background:#f3f4f6; border-radius:12px; padding:4px; gap:3px; margin-bottom:16px; }
+    .tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; color:var(--muted); border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; min-height:44px; font-family:inherit; }
+    .tab-btn.active { background:var(--primary); color:#fff; }
+
+    .rank-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+    .rank-item:last-child { border-bottom:none; padding-bottom:0; }
+    .rank-badge { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; flex-shrink:0; }
+    .rank-1 { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+    .rank-2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+    .rank-3 { background:linear-gradient(135deg,#cd7c2f,#92400e); color:#fff; }
+    .rank-n { background:#f3f4f6; color:var(--muted); }
+    .rank-info { flex:1; min-width:0; }
+    .rank-name { font-size:16px; font-weight:700; color:var(--text); }
+    .rank-sub  { font-size:12px; color:var(--muted); margin-top:2px; }
+    .rank-pts  { font-size:18px; font-weight:900; flex-shrink:0; }
+    .positive { color:var(--success); }
+    .negative { color:var(--danger); }
+    .neutral  { color:var(--muted); }
+
+    /* Group Summary */
+    .group-select { background:#f9fafb; border:1.5px solid var(--border); border-radius:10px; padding:7px 10px; font-size:13px; font-weight:700; color:var(--text); outline:none; font-family:inherit; -webkit-appearance:none; cursor:pointer; max-width:180px; }
+    .group-select:focus { border-color:var(--primary); }
+    .balance-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); }
+    .balance-row:last-child { border-bottom:none; }
+    .balance-name { font-size:14px; font-weight:700; color:var(--text); }
+    .balance-val  { font-size:15px; font-weight:900; }
+    .settle-item { display:flex; align-items:center; gap:8px; padding:9px 12px; background:#f9fafb; border:1px solid var(--border); border-radius:10px; margin-bottom:6px; font-size:13px; }
+    .settle-item:last-child { margin-bottom:0; }
+    .settle-from { font-weight:700; color:var(--text); }
+    .settle-arrow { color:var(--muted); flex-shrink:0; }
+    .settle-to { font-weight:700; color:var(--primary); flex:1; }
+    .settle-amt { font-weight:900; color:var(--warning); flex-shrink:0; }
+    .section-sub { font-size:12px; font-weight:700; color:var(--muted); margin:10px 0 8px; }
+
+    .memo-item { padding:12px; background:#f9fafb; border:1px solid var(--border); border-radius:12px; margin-bottom:8px; }
+    .memo-text { font-size:15px; line-height:1.6; color:var(--text); white-space:pre-wrap; }
+    .memo-meta { font-size:12px; color:var(--muted); margin-top:6px; }
+    .memo-form { margin-top:14px; border-top:1px solid var(--border); padding-top:14px; }
+
+    .form-group { margin-bottom:12px; }
+    .form-label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:7px; }
+    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
+    .form-input:focus { border-color:var(--primary); background:#fff; }
+    .form-input::placeholder { color:var(--dim); }
+    textarea.form-input { resize:vertical; min-height:80px; }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-past { background:#fff; border:2px solid var(--primary); color:var(--primary); border-radius:14px; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
+    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:32px; color:var(--muted); }
+    .empty-icon  { font-size:44px; margin-bottom:10px; }
+    .divider { border:none; border-top:1px solid var(--border); margin:10px 0; }
+
+    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .toast.success { border-color:#10b981; color:#10b981; }
+    .toast.error   { border-color:#ef4444; color:#ef4444; }
+
+    .chart-wrap { position:relative; height:200px; margin-top:4px; }
+    .chart-legend { display:flex; gap:8px; flex-wrap:wrap; }
+    .legend-item { display:flex; align-items:center; gap:4px; }
+    .legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge" id="header-badge">ホーム</div>
+</header>
+
+<div class="container">
+
+  <!-- Group Summary -->
+  <div class="card">
+    <div class="card-header-row">
+      <div class="card-header" style="margin-bottom:0">📅 グループ収支サマリー</div>
+      <select id="group-select" class="group-select" onchange="onGroupSelectChange()">
+        <option>読み込み中...</option>
+      </select>
+    </div>
+    <div id="group-summary-content">
+      <div class="loading"><div class="spinner"></div>読み込み中...</div>
+    </div>
+    <div id="group-chart-legend" class="chart-legend" style="display:none;margin-top:10px"></div>
+    <div id="group-chart-wrap" style="display:none;margin-top:4px">
+      <div class="chart-wrap"><canvas id="group-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-games">—</div>
+      <div class="stat-label">総対局数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-players">—</div>
+      <div class="stat-label">参加人数</div>
+    </div>
+  </div>
+
+  <!-- Rankings -->
+  <div class="card">
+    <div class="card-header">🏆 通算成績ランキング</div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchRankTab(this,'all')">総合</button>
+      <button class="tab-btn" onclick="switchRankTab(this,'3')">3人打ち</button>
+      <button class="tab-btn" onclick="switchRankTab(this,'4')">4人打ち</button>
+    </div>
+    <div id="rankings"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+  </div>
+
+  <!-- Chip Rankings -->
+  <div class="card">
+    <div class="card-header">🎯 チップ枚数ランキング</div>
+    <div id="chip-rankings"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+  </div>
+
+  <!-- Memo Board -->
+  <div class="card">
+    <div class="card-header">📌 掲示板・メモ</div>
+    <div id="memos"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+    <div class="memo-form">
+      <div class="form-group">
+        <label class="form-label">名前（任意）</label>
+        <input type="text" id="memo-author" class="form-input" placeholder="あなたの名前">
+      </div>
+      <div class="form-group">
+        <label class="form-label">内容</label>
+        <textarea id="memo-content" class="form-input" placeholder="メモを入力..."></textarea>
+      </div>
+      <button id="memo-btn" class="btn btn-primary" onclick="postMemo()">📝 メモを投稿</button>
+    </div>
+  </div>
+
+  <!-- Past Seasons -->
+  <a id="season-nav-btn" href="past.html" class="btn btn-past" style="margin-bottom:16px; text-decoration:none">
+    🗂 過去シーズンはこちら →
+  </a>
+
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-link active"><span class="nav-icon">🏠</span>ホーム</a>
+  <a href="input.html" class="nav-link"><span class="nav-icon">✏️</span>入力</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📊</span>成績</a>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+const DATA_START = '2026-04-07';
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#4ade80'];
+let S = { players:[], games:[], results:[], chips:[], memos:[], rankTab:'all' };
+let summaryGroups = [];
+let groupChart = null;
+
+const _params = new URLSearchParams(location.search);
+const currentSeasonId = _params.get('season');
+let currentSeasonName = 'ホーム';
+
+async function init() {
+  // シーズンモードの設定
+  if (currentSeasonId) {
+    const { data: season } = await sb.from('seasons').select('name').eq('id', currentSeasonId).single();
+    currentSeasonName = season?.name || `シーズン${currentSeasonId}`;
+    document.getElementById('header-badge').textContent = currentSeasonName;
+    document.getElementById('season-nav-btn').textContent = '← シーズン一覧に戻る';
+    document.getElementById('season-nav-btn').href = 'past.html';
+    // ナビリンクにシーズンIDを引き継ぐ
+    document.querySelectorAll('.bottom-nav .nav-link').forEach(a => {
+      const h = a.getAttribute('href');
+      if (h === 'index.html') a.href = `index.html?season=${currentSeasonId}`;
+      else if (h === 'input.html') a.href = `input.html?season=${currentSeasonId}`;
+    });
+  }
+  try {
+    await loadData();
+    initGroupSummary();
+    renderStats();
+    renderRankings();
+    renderChipRankings();
+    renderMemos();
+  } catch(e) {
+    console.error(e);
+    toast('データの読み込みに失敗しました', 'error');
+  }
+}
+
+async function loadData() {
+  let gamesQ = sb.from('games').select('*').order('date', { ascending:false });
+  let chipsQ = sb.from('chip_settlements').select('*');
+  if (currentSeasonId) {
+    gamesQ = gamesQ.eq('season_id', currentSeasonId);
+    chipsQ = chipsQ.eq('season_id', currentSeasonId);
+  } else {
+    gamesQ = gamesQ.gte('date', DATA_START);
+    chipsQ = chipsQ.gte('date', DATA_START);
+  }
+  const [r1, r2, r3, r4] = await Promise.all([
+    sb.from('players').select('*').order('name'),
+    gamesQ,
+    chipsQ,
+    sb.from('memos').select('*').order('created_at', { ascending:false }).limit(20)
+  ]);
+  S.players = r1.data || [];
+  S.games   = r2.data || [];
+  S.chips   = r3.data || [];
+  S.memos   = r4.data || [];
+  if (S.games.length > 0) {
+    const ids = S.games.map(g => g.id);
+    const { data } = await sb.from('game_results').select('*').in('game_id', ids);
+    S.results = data || [];
+  }
+}
+
+// ── Group Summary ──
+function initGroupSummary() {
+  const seen = new Set();
+  summaryGroups = [];
+  S.games.forEach(g => {
+    const key = `${g.date}|${g.group_name || ''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      summaryGroups.push({ date: g.date, groupName: g.group_name || '' });
+    }
+  });
+  summaryGroups.sort((a, b) => b.date.localeCompare(a.date));
+
+  const sel = document.getElementById('group-select');
+  if (!summaryGroups.length) {
+    sel.innerHTML = '<option>データなし</option>';
+    document.getElementById('group-summary-content').innerHTML =
+      '<div class="empty-state" style="padding:16px"><div class="empty-icon">🎴</div>データがありません</div>';
+    return;
+  }
+  sel.innerHTML = summaryGroups.map((g, i) => {
+    const label = fmtDateShort(g.date) + (g.groupName ? ' · ' + g.groupName : '');
+    return `<option value="${i}">${label}</option>`;
+  }).join('');
+  renderGroupSummary(summaryGroups[0]);
+}
+
+function onGroupSelectChange() {
+  const idx = parseInt(document.getElementById('group-select').value);
+  if (summaryGroups[idx]) renderGroupSummary(summaryGroups[idx]);
+}
+
+function renderGroupSummary(group) {
+  const { date, groupName } = group;
+  const dayGames = S.games.filter(g => g.date === date && (g.group_name || '') === groupName);
+  const gameIds  = new Set(dayGames.map(g => g.id));
+  const dayResults = S.results.filter(r => gameIds.has(r.game_id));
+
+  const playerTotals = {};
+  dayResults.forEach(r => {
+    if (!playerTotals[r.player_id]) {
+      const p = S.players.find(x => x.id === r.player_id);
+      playerTotals[r.player_id] = { name: p ? p.name : '?', pt: 0 };
+    }
+    playerTotals[r.player_id].pt += r.total_pt;
+  });
+
+  // chip_pt を収支に加算（同じグループのみ）
+  S.chips.filter(c => c.date === date && (c.group_name || '') === groupName).forEach(c => {
+    const pid = String(c.player_id);
+    const existKey = Object.keys(playerTotals).find(k => String(k) === pid) || pid;
+    if (!playerTotals[existKey]) {
+      const p = S.players.find(x => String(x.id) === pid);
+      playerTotals[existKey] = { name: p ? p.name : '?', pt: 0 };
+    }
+    playerTotals[existKey].pt += (c.chip_pt || 0);
+  });
+
+  const sorted = Object.values(playerTotals).sort((a, b) => b.pt - a.pt);
+  const el = document.getElementById('group-summary-content');
+
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">🎴</div>データがありません</div>';
+    document.getElementById('group-chart-legend').style.display = 'none';
+    document.getElementById('group-chart-wrap').style.display = 'none';
+    return;
+  }
+
+  const balHTML = sorted.map(p => {
+    const cls = p.pt > 0 ? 'positive' : p.pt < 0 ? 'negative' : 'neutral';
+    const str = (p.pt > 0 ? '+' : '') + p.pt.toLocaleString() + ' pt';
+    return `<div class="balance-row">
+      <span class="balance-name">${esc(p.name)}</span>
+      <span class="balance-val ${cls}">${str}</span>
+    </div>`;
+  }).join('');
+
+  const balances = sorted.map(p => ({ name: p.name, net: p.pt }));
+  const txns = minSettlement(balances);
+  const txnHTML = !txns.length
+    ? '<div style="color:var(--success);font-size:13px;font-weight:700;text-align:center;padding:8px 0">✅ 精算不要</div>'
+    : txns.map(t => `<div class="settle-item">
+        <span class="settle-from">${esc(t.from)}</span>
+        <span class="settle-arrow">→</span>
+        <span class="settle-to">${esc(t.to)}</span>
+        <span class="settle-amt">${t.amount.toLocaleString()} pt</span>
+      </div>`).join('');
+
+  el.innerHTML = `
+    ${balHTML}
+    <hr class="divider">
+    <div class="section-sub">最小精算（${txns.length}回）</div>
+    ${txnHTML}
+  `;
+
+  renderGroupChart(dayGames, playerTotals, date, groupName);
+}
+
+function renderGroupChart(dayGames, playerTotals, date, groupName) {
+  const legendEl = document.getElementById('group-chart-legend');
+  const wrapEl   = document.getElementById('group-chart-wrap');
+  const canvas   = document.getElementById('group-chart');
+
+  const sortedGames = [...dayGames].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  if (!sortedGames.length) {
+    legendEl.style.display = 'none'; wrapEl.style.display = 'none'; return;
+  }
+
+  const gameIds    = sortedGames.map(g => g.id);
+  const gameIdSet  = new Set(gameIds);
+  const dayResults = S.results.filter(r => gameIdSet.has(r.game_id));
+  const dayChips   = S.chips.filter(c => c.date === date && (c.group_name || '') === (groupName || ''));
+  const hasChips   = dayChips.some(c => c.chip_pt);
+
+  const labels = sortedGames.map((_, i) => `対局${i + 1}`);
+  if (hasChips) labels.push('Chip');
+
+  const pids = Object.keys(playerTotals);
+  const datasets = pids.map((pid, idx) => {
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    let cum = 0;
+    const data = gameIds.map(gid => {
+      const r = dayResults.find(x => String(x.game_id) === String(gid) && String(x.player_id) === String(pid));
+      if (r) cum += r.total_pt;
+      return cum;
+    });
+    if (hasChips) {
+      const chipRec = dayChips.find(c => String(c.player_id) === String(pid));
+      cum += chipRec ? (chipRec.chip_pt || 0) : 0;
+      data.push(cum);
+    }
+    return { label: playerTotals[pid].name, data, borderColor: color, backgroundColor: color + '22', tension: 0.3, fill: false, pointRadius: 5, borderWidth: 2 };
+  });
+
+  legendEl.innerHTML = pids.map((pid, idx) => {
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    return `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div><span style="font-size:11px;color:var(--muted)">${esc(playerTotals[pid].name)}</span></div>`;
+  }).join('');
+  legendEl.style.display = 'flex';
+  wrapEl.style.display = 'block';
+
+  if (groupChart) groupChart.destroy();
+  groupChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    plugins: [{
+      id: 'zeroline',
+      afterDraw(chart) {
+        const yScale = chart.scales.y; if (!yScale) return;
+        const y = yScale.getPixelForValue(0);
+        const { ctx, chartArea } = chart;
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y);
+        ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke();
+        ctx.restore();
+      }
+    }],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1f2937', titleColor: '#9ca3af', bodyColor: '#f9fafb',
+          borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+          callbacks: { label: ctx => { const v = ctx.parsed.y; return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v.toLocaleString()} pt`; } }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#f3f4f6' } },
+        y: { ticks: { color: '#9ca3af', font: { size: 11 }, callback: v => (v >= 0 ? '+' : '') + v.toLocaleString() }, grid: { color: '#f3f4f6' } }
+      }
+    }
+  });
+}
+
+function minSettlement(balances) {
+  const credits = balances.filter(b => b.net > 0.5).map(b => ({...b})).sort((a, b) => b.net - a.net);
+  const debts   = balances.filter(b => b.net < -0.5).map(b => ({...b})).sort((a, b) => a.net - b.net);
+  const txns = [];
+  let i = 0, j = 0;
+  while (i < credits.length && j < debts.length) {
+    const amt = Math.min(credits[i].net, -debts[j].net);
+    txns.push({ from: debts[j].name, to: credits[i].name, amount: Math.round(amt) });
+    credits[i].net -= amt; debts[j].net += amt;
+    if (credits[i].net < 0.5) i++;
+    if (debts[j].net > -0.5) j++;
+  }
+  return txns;
+}
+
+// ── Stats / Rankings ──
+function renderStats() {
+  document.getElementById('stat-games').textContent   = S.games.length;
+  document.getElementById('stat-players').textContent = S.players.length;
+}
+
+function switchRankTab(el, tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  S.rankTab = tab;
+  renderRankings();
+}
+
+function computeStats(pcFilter) {
+  const gameSet = new Set(S.games.filter(g => !pcFilter || g.player_count === pcFilter).map(g => g.id));
+  const map = {};
+  S.players.forEach(p => { map[p.id] = { id:p.id, name:p.name, games:0, totalPt:0, rankSum:0 }; });
+  S.results.filter(r => gameSet.has(r.game_id)).forEach(r => {
+    const s = map[r.player_id]; if (!s) return;
+    s.games++; s.totalPt += r.total_pt; s.rankSum += r.rank;
+  });
+  return Object.values(map).filter(s => s.games > 0).sort((a, b) => b.totalPt - a.totalPt);
+}
+
+function renderRankings() {
+  const filter = S.rankTab === 'all' ? null : parseInt(S.rankTab);
+  const stats  = computeStats(filter);
+  const el     = document.getElementById('rankings');
+  if (!stats.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div>データがありません</div>'; return;
+  }
+  el.innerHTML = stats.map((s, i) => {
+    const rank = i + 1;
+    const avg  = (s.rankSum / s.games).toFixed(2);
+    const pts  = s.totalPt;
+    const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
+    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
+    const bc   = rank <= 3 ? `rank-${rank}` : 'rank-n';
+    return `<div class="rank-item">
+      <div class="rank-badge ${bc}">${rank}</div>
+      <div class="rank-info">
+        <div class="rank-name">${esc(s.name)}</div>
+        <div class="rank-sub">${s.games}戦 · 平均 ${avg} 位</div>
+      </div>
+      <div class="rank-pts ${cls}">${str}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderChipRankings() {
+  const totals = {};
+  S.players.forEach(p => { totals[p.id] = { name:p.name, chips:0 }; });
+  S.chips.forEach(c => { if (totals[c.player_id]) totals[c.player_id].chips += c.chip_count; });
+  const sorted = Object.values(totals).filter(t => t.chips !== 0).sort((a, b) => b.chips - a.chips);
+  const el = document.getElementById('chip-rankings');
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎯</div>データがありません</div>'; return;
+  }
+  el.innerHTML = sorted.map((c, i) => {
+    const rank = i + 1;
+    const cls  = c.chips > 0 ? 'positive' : 'negative';
+    const str  = (c.chips > 0 ? '+' : '') + c.chips + ' 枚';
+    const bc   = rank <= 3 ? `rank-${rank}` : 'rank-n';
+    return `<div class="rank-item">
+      <div class="rank-badge ${bc}">${rank}</div>
+      <div class="rank-info"><div class="rank-name">${esc(c.name)}</div></div>
+      <div class="rank-pts ${cls}">${str}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMemos() {
+  const el = document.getElementById('memos');
+  if (!S.memos.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📌</div>まだメモがありません</div>'; return;
+  }
+  el.innerHTML = S.memos.map(m => {
+    const d = new Date(m.created_at).toLocaleDateString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div class="memo-item">
+      <div class="memo-text">${esc(m.content)}</div>
+      <div class="memo-meta">${esc(m.author || '匿名')} · ${d}</div>
+    </div>`;
+  }).join('');
+}
+
+async function postMemo() {
+  const author  = document.getElementById('memo-author').value.trim();
+  const content = document.getElementById('memo-content').value.trim();
+  if (!content) { toast('内容を入力してください', 'error'); return; }
+  const btn = document.getElementById('memo-btn');
+  btn.disabled = true; btn.textContent = '送信中...';
+  const { error } = await sb.from('memos').insert({ content, author: author || '匿名' });
+  btn.disabled = false; btn.textContent = '📝 メモを投稿';
+  if (error) { toast('投稿に失敗しました', 'error'); return; }
+  document.getElementById('memo-content').value = '';
+  toast('メモを投稿しました ✓', 'success');
+  const { data } = await sb.from('memos').select('*').order('created_at', { ascending:false }).limit(20);
+  S.memos = data || [];
+  renderMemos();
+}
+
+function fmtDateShort(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${parseInt(m)}/${parseInt(day)}`;
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

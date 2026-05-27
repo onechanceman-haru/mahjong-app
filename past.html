@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>シーズン管理 | 公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:90px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; color:var(--text); }
+    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:16px; margin-bottom:12px; }
+    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; }
+
+    .form-group { margin-bottom:12px; }
+    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
+    .form-input:focus { border-color:var(--primary); background:#fff; }
+    .form-input::placeholder { color:var(--dim); }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-danger  { background:linear-gradient(135deg,var(--danger),#dc2626); color:#fff; }
+    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
+    .btn-sm { min-height:40px; padding:8px 14px; font-size:13px; width:auto; }
+    .btn-past { background:#fff; border:2px solid var(--primary); color:var(--primary); border-radius:14px; }
+
+    .season-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:18px; margin-bottom:10px; }
+    .season-name { font-size:17px; font-weight:900; color:var(--text); margin-bottom:4px; }
+    .season-date { font-size:12px; color:var(--muted); }
+    .season-actions { display:flex; gap:8px; margin-top:14px; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
+    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:32px; color:var(--muted); }
+    .empty-icon { font-size:44px; margin-bottom:10px; }
+
+    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .toast.success { border-color:#10b981; color:#10b981; }
+    .toast.error   { border-color:#ef4444; color:#ef4444; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge">シーズン</div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <div class="card-header">＋ シーズンを追加</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <input type="text" id="season-name-input" class="form-input" placeholder="例：シーズン4(令和9年度)">
+    </div>
+    <button id="add-btn" class="btn btn-primary" onclick="addSeason()">追加</button>
+  </div>
+
+  <div id="season-list">
+    <div class="loading"><div class="spinner"></div>読み込み中...</div>
+  </div>
+
+  <a href="index.html" class="btn btn-past" style="margin-bottom:16px;text-decoration:none">← ホームに戻る</a>
+
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span>ホーム</a>
+  <a href="input.html" class="nav-link"><span class="nav-icon">✏️</span>入力</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📊</span>成績</a>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let seasons = [];
+
+async function init() {
+  await loadSeasons();
+}
+
+async function loadSeasons() {
+  const { data, error } = await sb.from('seasons').select('*').order('id', { ascending: false });
+  if (error) { toast('読み込みに失敗しました', 'error'); return; }
+  seasons = data || [];
+  renderSeasons();
+}
+
+function renderSeasons() {
+  const el = document.getElementById('season-list');
+  if (!seasons.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div>シーズンがありません</div>'; return;
+  }
+  el.innerHTML = seasons.map(s => {
+    const d = new Date(s.created_at).toLocaleDateString('ja-JP', { year:'numeric', month:'short', day:'numeric' });
+    return `<div class="season-card">
+      <div class="season-name">${esc(s.name)}</div>
+      <div class="season-date">作成日：${d}</div>
+      <div class="season-actions">
+        <a href="index.html?season=${s.id}" class="btn btn-primary btn-sm" style="text-decoration:none;flex:1">🏠 ホームへ</a>
+        <button class="btn btn-danger btn-sm" onclick="deleteSeason(${s.id})" style="flex:1">🗑 削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addSeason() {
+  const name = document.getElementById('season-name-input').value.trim();
+  if (!name) { toast('シーズン名を入力してください', 'error'); return; }
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true; btn.textContent = '追加中...';
+  const { error } = await sb.from('seasons').insert({ name });
+  btn.disabled = false; btn.textContent = '追加';
+  if (error) { toast('追加に失敗しました', 'error'); return; }
+  document.getElementById('season-name-input').value = '';
+  toast(`${name} を追加しました ✓`, 'success');
+  await loadSeasons();
+}
+
+async function deleteSeason(id) {
+  const s = seasons.find(x => x.id === id);
+  const label = s ? s.name : 'このシーズン';
+  if (!confirm(`「${label}」を削除しますか？\n※対局・チップデータは削除されません`)) return;
+
+  const { data: linked } = await sb.from('games').select('id').eq('season_id', id).limit(1);
+  if (linked && linked.length > 0) {
+    toast('対局データが紐付いているため削除できません', 'error'); return;
+  }
+
+  const { error } = await sb.from('seasons').delete().eq('id', id);
+  if (error) { toast('削除に失敗しました', 'error'); return; }
+  toast('削除しました ✓', 'success');
+  await loadSeasons();
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

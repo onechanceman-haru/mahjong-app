@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>当日成績 | 公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-light: #818cf8;
+      --primary-dark: #3730a3;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --bg: #f3f4f8;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --dim: #9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      font-family:'Noto Sans JP',-apple-system,sans-serif;
+      background:var(--bg); min-height:100vh; color:var(--text);
+      font-size:16px; padding-bottom:90px; -webkit-font-smoothing:antialiased;
+    }
+
+    /* ── Header ── */
+    .header {
+      position:sticky; top:0; z-index:100;
+      background:var(--surface); border-bottom:1px solid var(--border);
+      box-shadow:0 1px 4px rgba(0,0,0,0.06);
+      padding:0 16px; height:56px;
+      display:flex; align-items:center; gap:12px;
+    }
+    .header-logo {
+      width:34px; height:34px;
+      background:linear-gradient(135deg,var(--primary),var(--primary-light));
+      border-radius:10px; display:flex; align-items:center;
+      justify-content:center; font-size:20px; flex-shrink:0;
+    }
+    .header-title { font-size:15px; font-weight:700; flex:1; }
+    .header-badge {
+      font-size:11px; color:var(--primary);
+      background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2);
+      padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap;
+    }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    /* ── Date banner ── */
+    .date-banner {
+      background:linear-gradient(135deg,var(--primary),#6366f1);
+      border-radius:16px; padding:16px 20px; margin-bottom:16px;
+      color:#fff; display:flex; align-items:center; justify-content:space-between;
+    }
+    .date-banner-label { font-size:13px; opacity:0.8; }
+    .date-banner-date  { font-size:20px; font-weight:900; margin-top:2px; }
+    .date-banner-count { font-size:28px; font-weight:900; }
+    .date-banner-unit  { font-size:13px; opacity:0.8; }
+
+    /* ── Summary card ── */
+    .card {
+      background:var(--surface); border:1px solid var(--border);
+      box-shadow:0 2px 8px rgba(0,0,0,0.05);
+      border-radius:16px; padding:16px; margin-bottom:12px;
+    }
+    .card-header {
+      font-size:13px; font-weight:700; color:var(--muted);
+      text-transform:uppercase; letter-spacing:0.05em;
+      margin-bottom:14px; display:flex; align-items:center; gap:8px;
+    }
+
+    /* ── Rank item ── */
+    .rank-item {
+      display:flex; align-items:center; gap:12px;
+      padding:12px 0; border-bottom:1px solid var(--border);
+    }
+    .rank-item:last-child { border-bottom:none; padding-bottom:0; }
+    .rank-badge {
+      width:32px; height:32px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:900; font-size:13px; flex-shrink:0;
+    }
+    .rank-1 { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+    .rank-2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+    .rank-3 { background:linear-gradient(135deg,#cd7c2f,#92400e); color:#fff; }
+    .rank-n { background:#f3f4f6; color:var(--muted); }
+    .rank-info { flex:1; min-width:0; }
+    .rank-name { font-size:15px; font-weight:700; color:var(--text); }
+    .rank-sub  { font-size:12px; color:var(--muted); margin-top:2px; }
+    .rank-pts  { font-size:17px; font-weight:900; flex-shrink:0; }
+    .positive { color:var(--success); }
+    .negative { color:var(--danger); }
+    .neutral  { color:var(--muted); }
+
+    /* ── Game card ── */
+    .game-card {
+      background:#f9fafb; border:1px solid var(--border);
+      border-radius:14px; margin-bottom:10px; overflow:hidden;
+    }
+    .game-card-header {
+      padding:10px 14px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      background:rgba(79,70,229,0.04);
+    }
+    .game-card-title  { font-size:14px; font-weight:700; color:var(--primary); }
+    .game-card-type   { font-size:12px; color:var(--muted); }
+    .game-row {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 14px; border-bottom:1px solid rgba(229,231,235,0.6);
+    }
+    .game-row:last-child { border-bottom:none; }
+    .game-row-rank  { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; flex-shrink:0; }
+    .game-row-name  { flex:1; font-size:14px; font-weight:700; color:var(--text); }
+    .game-row-score { text-align:right; }
+    .game-row-diff  { font-size:13px; font-weight:700; }
+    .game-row-total { font-size:13px; color:var(--muted); }
+
+    /* ── Action buttons ── */
+    .btn {
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      padding:14px 20px; border:none; border-radius:12px;
+      font-size:15px; font-weight:700; cursor:pointer;
+      min-height:52px; font-family:inherit; width:100%;
+      text-decoration:none;
+    }
+    .btn:active { opacity:0.8; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
+    .btn-row     { display:flex; gap:8px; }
+    .btn-row .btn { flex:1; }
+
+    /* ── Bottom Nav (keep dark) ── */
+    .bottom-nav {
+      position:fixed; bottom:0; left:0; right:0; height:70px;
+      background:rgba(13,13,26,0.97); backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1);
+      display:flex; z-index:100;
+    }
+    .nav-link {
+      flex:1; display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:4px; text-decoration:none;
+      color:#94a3b8; font-size:11px; font-weight:700; min-height:70px;
+    }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    /* ── Misc ── */
+    .loading { text-align:center; padding:60px 20px; color:var(--muted); }
+    .spinner {
+      width:40px; height:40px; border:3px solid rgba(79,70,229,0.15);
+      border-top-color:var(--primary); border-radius:50%;
+      animation:spin 0.7s linear infinite; margin:0 auto 16px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
+    .empty-icon  { font-size:56px; margin-bottom:12px; }
+    .empty-title { font-size:18px; font-weight:700; margin-bottom:8px; color:var(--text); }
+    .divider { border:none; border-top:1px solid var(--border); margin:14px 0; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge" id="header-date">当日成績</div>
+</header>
+
+<div class="container" id="main">
+  <div class="loading"><div class="spinner"></div>読み込み中...</div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span>ホーム</a>
+  <a href="input.html" class="nav-link active"><span class="nav-icon">✏️</span>入力</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📊</span>成績</a>
+</nav>
+
+<script>
+const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const params  = new URLSearchParams(location.search);
+const dateStr = params.get('date') || new Date().toISOString().split('T')[0];
+
+async function init() {
+  document.getElementById('header-date').textContent = fmtDateShort(dateStr);
+
+  const { data: games, error: ge } = await sb.from('games').select('*').eq('date', dateStr).order('created_at');
+
+  if (ge) { renderError(); return; }
+
+  const { data: players } = await sb.from('players').select('*').order('name');
+  const playerMap = {};
+  (players || []).forEach(p => { playerMap[p.id] = p.name; });
+
+  if (!games?.length) { renderEmpty(); return; }
+
+  const ids = games.map(g => g.id);
+  const { data: results } = await sb.from('game_results').select('*').in('game_id', ids);
+  const resultsByGame = {};
+  (results || []).forEach(r => {
+    if (!resultsByGame[r.game_id]) resultsByGame[r.game_id] = [];
+    resultsByGame[r.game_id].push(r);
+  });
+
+  // Day summary per player
+  const daySummary = {};
+  (results || []).forEach(r => {
+    if (!daySummary[r.player_id]) daySummary[r.player_id] = { name: playerMap[r.player_id] || '?', games:0, totalPt:0 };
+    daySummary[r.player_id].games++;
+    daySummary[r.player_id].totalPt += r.total_pt;
+  });
+  const summaryArr = Object.values(daySummary).sort((a,b) => b.totalPt - a.totalPt);
+
+  renderPage(games, resultsByGame, playerMap, summaryArr);
+}
+
+function renderPage(games, resultsByGame, playerMap, summaryArr) {
+  const main = document.getElementById('main');
+
+  // Date banner
+  const bannerHTML = `
+    <div class="date-banner">
+      <div>
+        <div class="date-banner-label">対局日</div>
+        <div class="date-banner-date">${fmtDateLong(dateStr)}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="date-banner-count">${games.length}</div>
+        <div class="date-banner-unit">局</div>
+      </div>
+    </div>`;
+
+  // Day summary ranking
+  const summaryRows = summaryArr.map((s, i) => {
+    const rank = i + 1;
+    const pts  = s.totalPt;
+    const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
+    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
+    const bc   = rank <= 3 ? `rank-${rank}` : 'rank-n';
+    return `<div class="rank-item">
+      <div class="rank-badge ${bc}">${rank}</div>
+      <div class="rank-info">
+        <div class="rank-name">${esc(s.name)}</div>
+        <div class="rank-sub">${s.games}局</div>
+      </div>
+      <div class="rank-pts ${cls}">${str}</div>
+    </div>`;
+  }).join('');
+
+  const summaryHTML = `
+    <div class="card">
+      <div class="card-header">🏆 本日の通算収支</div>
+      ${summaryRows}
+    </div>`;
+
+  // Per-game details
+  const gamesHTML = games.map((g, idx) => {
+    const rr = (resultsByGame[g.id] || []).sort((a,b) => a.rank - b.rank);
+    const typeLabel = g.player_count === 3 ? '3人打ち' : '4人打ち';
+    const groupLabel = g.group_name ? ` · ${esc(g.group_name)}` : '';
+
+    const rows = rr.map(r => {
+      const diff  = r.score_pt;
+      const bonus = r.bonus_pt;
+      const total = r.total_pt;
+      const cls   = total > 0 ? 'positive' : total < 0 ? 'negative' : 'neutral';
+      const diffStr = (diff >= 0 ? '+' : '') + diff.toLocaleString();
+      const bonStr  = (bonus >= 0 ? '+' : '') + bonus.toLocaleString();
+      const totStr  = (total >= 0 ? '+' : '') + total.toLocaleString();
+      const rbadge  = r.rank <= 3 ? `rank-${r.rank}` : 'rank-n';
+      return `<div class="game-row">
+        <div class="game-row-rank ${rbadge}">${r.rank}</div>
+        <div class="game-row-name">${esc(playerMap[r.player_id] || '?')}</div>
+        <div class="game-row-score">
+          <div class="game-row-diff ${cls}">${diffStr}点</div>
+          <div class="game-row-total">順位点 ${bonStr} = 合計 ${totStr}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="game-card">
+      <div class="game-card-header">
+        <span class="game-card-title">対局 ${idx + 1}${groupLabel}</span>
+        <span class="game-card-type">${typeLabel}</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  const detailHTML = `
+    <div class="card">
+      <div class="card-header">📋 対局詳細</div>
+      ${gamesHTML}
+    </div>`;
+
+  // Action buttons
+  const actionHTML = `
+    <div class="btn-row" style="margin-bottom:8px">
+      <a href="input.html" class="btn btn-primary">✏️ 続けて入力</a>
+      <a href="index.html" class="btn btn-outline">🏠 ホームへ</a>
+    </div>`;
+
+  main.innerHTML = bannerHTML + summaryHTML + detailHTML + actionHTML;
+}
+
+function renderEmpty() {
+  document.getElementById('main').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">🎴</div>
+      <div class="empty-title">${fmtDateLong(dateStr)}</div>
+      <div style="margin-bottom:24px">この日の対局データがありません</div>
+      <a href="input.html" class="btn btn-primary">✏️ 対局を入力する</a>
+    </div>`;
+}
+
+function renderError() {
+  document.getElementById('main').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">⚠️</div>
+      <div class="empty-title">読み込みエラー</div>
+      <div style="margin-bottom:24px">データの取得に失敗しました</div>
+      <a href="index.html" class="btn btn-outline">← ホームへ</a>
+    </div>`;
+}
+
+function fmtDateLong(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${y}年${parseInt(m)}月${parseInt(day)}日`;
+}
+
+function fmtDateShort(d) {
+  if (!d) return '当日成績';
+  const [y, m, day] = d.split('-');
+  return `${parseInt(m)}/${parseInt(day)}`;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

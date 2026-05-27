@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>入力 | 公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:90px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; }
+    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; }
+
+    .main-tab-bar { display:flex; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:56px; z-index:90; }
+    .main-tab { flex:1; padding:14px 4px; border:none; background:transparent; color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; min-height:50px; border-bottom:2px solid transparent; }
+    .main-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .section-header { display:flex; align-items:center; gap:10px; margin:20px 0 10px; }
+    .section-num { width:26px; height:26px; border-radius:50%; background:var(--primary); color:#fff; font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .section-title { font-size:15px; font-weight:700; color:var(--text); }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.05); border-radius:16px; padding:16px; margin-bottom:12px; overflow:hidden; }
+    .card-header { font-size:13px; font-weight:700; color:var(--muted); margin-bottom:14px; }
+
+    .form-group { margin-bottom:14px; }
+    .form-label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:7px; }
+    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
+    .form-input:focus { border-color:var(--primary); background:#fff; }
+    .form-input::placeholder { color:var(--dim); }
+    select.form-input { -webkit-appearance:auto; appearance:auto; cursor:pointer; }
+
+    .toggle-group { display:flex; gap:6px; }
+    .toggle-btn { flex:1; padding:11px 6px; border:1.5px solid var(--border); border-radius:12px; background:#f9fafb; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; min-height:48px; text-align:center; }
+    .toggle-btn.active { background:rgba(79,70,229,0.08); border-color:var(--primary); color:var(--primary); }
+
+    .group-item { display:flex; align-items:center; justify-content:space-between; padding:13px; border:1.5px solid var(--border); border-radius:12px; margin-bottom:8px; cursor:pointer; background:#f9fafb; }
+    .group-item.selected { border-color:var(--primary); background:rgba(79,70,229,0.06); }
+    .group-date { font-size:12px; color:var(--muted); margin-bottom:2px; }
+    .group-name { font-size:15px; font-weight:700; color:var(--text); }
+    .group-item.selected .group-name { color:var(--primary); }
+    .btn-icon { width:40px; height:40px; border:none; border-radius:10px; background:rgba(239,68,68,0.08); color:var(--danger); font-size:16px; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+
+    .player-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .player-chip { padding:12px 8px; border:1.5px solid var(--border); border-radius:10px; background:#f9fafb; color:var(--text); font-size:14px; font-weight:700; cursor:pointer; min-height:48px; text-align:center; font-family:inherit; }
+    .player-chip.selected { background:rgba(79,70,229,0.1); border-color:var(--primary); color:var(--primary); }
+    .selected-count { font-size:13px; color:var(--muted); margin-top:8px; font-weight:600; }
+
+    .rank-pt-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; width:100%; }
+    .rank-pt-row { display:flex; align-items:center; gap:6px; background:#f9fafb; border:1px solid var(--border); border-radius:12px; padding:10px 12px; overflow:hidden; min-width:0; }
+    .rank-pt-label { font-size:12px; font-weight:700; color:var(--muted); flex-shrink:0; white-space:nowrap; }
+    .rank-pt-input { flex:1; min-width:0; background:transparent; border:none; outline:none; font-size:15px; font-weight:700; color:var(--text); font-family:inherit; text-align:right; width:0; }
+    .rank-pt-suffix { font-size:12px; color:var(--dim); flex-shrink:0; }
+    .rank-sum-display { font-size:13px; font-weight:700; margin-top:8px; padding:6px 10px; border-radius:8px; background:#f9fafb; }
+
+    .game-row { display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .game-row:last-child { border-bottom:none; }
+    .game-row-name { font-size:15px; font-weight:700; min-width:68px; flex-shrink:0; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .game-row-input { flex:1; min-width:0; }
+    .game-row-input .form-input { padding:10px 12px; font-size:15px; }
+    .game-row-suffix { font-size:13px; color:var(--muted); flex-shrink:0; }
+
+    .score-summary { padding:14px; border-radius:12px; background:#f9fafb; border:1.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+    .score-label { font-size:13px; font-weight:600; color:var(--muted); }
+    .score-val { font-size:20px; font-weight:900; }
+    .score-val.ok { color:var(--success); }
+    .score-val.warn { color:var(--warning); }
+    .score-val.error { color:var(--danger); }
+    .score-hint { font-size:12px; color:var(--muted); margin-top:6px; }
+
+    .chip-input-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .chip-input-row:last-child { border-bottom:none; }
+    .chip-input-name { font-size:15px; font-weight:700; flex:1; color:var(--text); }
+    .chip-input-field { width:100px; flex-shrink:0; }
+    .chip-sum-display { font-size:13px; font-weight:700; margin-top:10px; padding:6px 10px; border-radius:8px; background:#f9fafb; }
+
+    .player-list-item { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+    .player-list-item:last-child { border-bottom:none; }
+    .player-list-name { font-size:16px; font-weight:700; color:var(--text); }
+    .player-list-date { font-size:12px; color:var(--muted); }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-success { background:linear-gradient(135deg,var(--success),#059669); color:#fff; }
+    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
+    .btn-sm { min-height:44px; padding:10px 16px; font-size:13px; }
+    .btn-row { display:flex; gap:8px; }
+    .btn-row .btn { flex:1; }
+
+    .info-badge { display:inline-block; background:rgba(79,70,229,0.08); color:var(--primary); border:1px solid rgba(79,70,229,0.2); border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; margin-bottom:12px; }
+
+    .success-banner { background:rgba(16,185,129,0.08); border:1.5px solid var(--success); border-radius:12px; padding:14px; text-align:center; margin-top:14px; }
+    .success-banner-title { font-size:15px; font-weight:700; color:var(--success); margin-bottom:12px; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
+    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:24px; color:var(--muted); }
+    .empty-icon { font-size:40px; margin-bottom:8px; }
+    .divider { border:none; border-top:1px solid var(--border); margin:14px 0; }
+    .hint { font-size:12px; color:var(--dim); margin-top:6px; }
+
+    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .toast.success { border-color:#10b981; color:#10b981; }
+    .toast.error { border-color:#ef4444; color:#ef4444; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge">入力</div>
+</header>
+
+<div class="main-tab-bar">
+  <button class="main-tab active" onclick="switchMainTab(this,'game')">🎮 対局入力</button>
+  <button class="main-tab" onclick="switchMainTab(this,'chip')">🎯 チップ精算</button>
+  <button class="main-tab" onclick="switchMainTab(this,'player')">👤 プレイヤー</button>
+</div>
+
+<!-- ═══ TAB: 対局入力 ═══ -->
+<div id="tab-game" class="tab-content active">
+  <div class="container">
+
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div class="section-title">グループ登録</div>
+    </div>
+    <div class="card">
+      <div class="card-header">日付・グループを登録</div>
+      <div class="form-group">
+        <label class="form-label">対局日</label>
+        <input type="date" id="g-date" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">グループ名（省略すると日付が自動設定されます）</label>
+        <input type="text" id="g-name" class="form-input" placeholder="例：土曜定例">
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-outline btn-sm" onclick="registerGroup()">＋ グループを登録</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">グループを選択</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="groups-select" class="form-input" onchange="onGameGroupSelect()">
+          <option value="">グループを登録してください</option>
+        </select>
+        <button class="btn-icon" onclick="deleteSelectedGroup()" title="選択中のグループを削除">🗑</button>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div class="section-title">対局設定</div>
+    </div>
+    <div class="card">
+      <div id="selected-group-badge" class="info-badge" style="display:none"></div>
+      <div class="form-group">
+        <label class="form-label">参加人数</label>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="pc-3" onclick="setPlayerCount(this,3)">3人打ち</button>
+          <button class="toggle-btn active" id="pc-4" onclick="setPlayerCount(this,4)">4人打ち</button>
+          <button class="toggle-btn" id="pc-5" onclick="setPlayerCount(this,5)">5人打ち</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">順位点設定</label>
+        <div id="rank-points-container"></div>
+        <div class="hint" style="margin-top:8px">マイナスは「-」を先頭に（例：-3000）</div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">参加者選択（タップで選択）</label>
+        <div id="player-grid-s2" class="player-grid"></div>
+        <div class="selected-count" id="selected-count">0/4名 選択中</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div class="section-title">結果入力</div>
+    </div>
+    <div class="card">
+      <div id="base-label" class="hint" style="margin-bottom:12px">参加者を選択すると入力欄が表示されます</div>
+      <div id="game-rows"></div>
+      <div class="score-summary">
+        <span class="score-label">差分合計</span>
+        <span class="score-val warn" id="diff-sum">未入力</span>
+      </div>
+      <div class="score-hint" id="diff-hint">参加者を選択してください</div>
+      <div style="margin-top:14px">
+        <button class="btn btn-success" id="submit-game-btn" onclick="submitGame()">✅ 対局登録</button>
+      </div>
+      <div id="after-submit" style="display:none">
+        <div class="success-banner">
+          <div class="success-banner-title">✅ 対局を登録しました！</div>
+          <div class="btn-row">
+            <button class="btn btn-outline btn-sm" onclick="continueInput()">続けて入力</button>
+            <a id="daily-link" href="#" class="btn btn-primary btn-sm" style="text-decoration:none">📅 成績確認</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ TAB: チップ精算 ═══ -->
+<div id="tab-chip" class="tab-content">
+  <div class="container">
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label">グループを選択</label>
+        <select id="chip-groups-select" class="form-input" onchange="onChipGroupSelect()">
+          <option value="">グループを登録してください</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">チップ単価（pt/枚）</label>
+        <input type="number" inputmode="numeric" id="chip-unit" class="form-input" value="300" placeholder="例：300">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">プレイヤーを選択（タップで選択）</div>
+      <div id="chip-player-grid" class="player-grid"></div>
+    </div>
+    <div class="card" id="chip-inputs-card" style="display:none">
+      <div class="card-header">チップ枚数入力</div>
+      <div id="chip-inputs"></div>
+      <div class="hint" style="margin-top:8px">プラスは獲得、マイナスは支払い</div>
+    </div>
+    <button class="btn btn-success" id="chip-submit-btn" onclick="submitChips()">✅ チップ精算を登録</button>
+  </div>
+</div>
+
+<!-- ═══ TAB: プレイヤー管理 ═══ -->
+<div id="tab-player" class="tab-content">
+  <div class="container">
+    <div class="card">
+      <div class="card-header">➕ プレイヤーを追加</div>
+      <div class="form-group">
+        <label class="form-label">名前</label>
+        <input type="text" id="new-player-name" class="form-input" placeholder="プレイヤー名を入力">
+      </div>
+      <button class="btn btn-primary" onclick="addPlayer()">登録する</button>
+    </div>
+    <div class="card">
+      <div class="card-header">👥 登録済みプレイヤー</div>
+      <div id="player-list"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span>ホーム</a>
+  <a href="input.html" class="nav-link active"><span class="nav-icon">✏️</span>入力</a>
+  <a href="history.html" class="nav-link"><span class="nav-icon">📊</span>成績</a>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const GROUPS_KEY = 'mj_groups_v2';
+
+const RANK_DEFAULTS = {
+  3: [2000, 0, -2000],
+  4: [2000, 1000, -1000, -2000],
+  5: [3000, 1000, 0, -1000, -3000]
+};
+const BASE_POINTS = { 3: '35,000', 4: '25,000', 5: '25,000' };
+
+let players = [];
+let groups  = [];
+let selectedGid = null;
+let selectedChipGid = null;
+let selectedChipPids = [];
+
+let cfg = {
+  playerCount: 4,
+  groupDate: null,
+  groupName: null,
+  rankPoints: [...RANK_DEFAULTS[4]],
+  selectedPids: []
+};
+
+async function init() {
+  setToday();
+  loadGroups();
+  populateGroupSelects();
+  const { data } = await sb.from('players').select('*').order('name');
+  players = data || [];
+  buildPlayerGrid();
+  buildChipPlayerGrid();
+  renderPlayerList();
+  updateRankPointsUI();
+}
+
+function setToday() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('g-date').value = today;
+}
+
+function switchMainTab(el, tab) {
+  document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ── Groups ──
+function loadGroups() {
+  try { groups = JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]'); } catch { groups = []; }
+}
+function saveGroups() {
+  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); } catch {}
+}
+
+function registerGroup() {
+  const date = document.getElementById('g-date').value;
+  let name = document.getElementById('g-name').value.trim();
+  if (!date) { toast('日付を選択してください', 'error'); return; }
+
+  if (!name) {
+    const [y, m, d] = date.split('-');
+    name = `${y}/${m}/${d}`;
+  }
+
+  const baseName = name;
+  let finalName = baseName;
+  let suffix = 2;
+  while (groups.some(g => g.date === date && g.name === finalName)) {
+    finalName = `${baseName}(${suffix++})`;
+  }
+
+  const newId = Date.now().toString();
+  groups.unshift({ id: newId, date, name: finalName });
+  selectedGid = newId;
+  saveGroups();
+  populateGroupSelects();
+  document.getElementById('g-name').value = '';
+  toast('グループを登録しました ✓', 'success');
+}
+
+function deleteSelectedGroup() {
+  if (!selectedGid) { toast('グループを選択してください', 'error'); return; }
+  const g = groups.find(x => x.id === selectedGid);
+  const label = g ? `${fmtDate(g.date)} · ${g.name}` : 'このグループ';
+  if (!confirm(`「${label}」を削除しますか？`)) return;
+  if (selectedChipGid === selectedGid) selectedChipGid = null;
+  groups = groups.filter(x => x.id !== selectedGid);
+  selectedGid = groups.length ? groups[0].id : null;
+  saveGroups();
+  populateGroupSelects();
+  updateGroupBadge();
+}
+
+function updateGroupBadge() {
+  const badge = document.getElementById('selected-group-badge');
+  if (!selectedGid) { badge.style.display = 'none'; cfg.groupDate = null; cfg.groupName = null; return; }
+  const g = groups.find(x => x.id === selectedGid);
+  if (!g) { badge.style.display = 'none'; return; }
+  badge.style.display = 'inline-block';
+  badge.textContent = `📅 ${fmtDate(g.date)} · ${g.name}`;
+  cfg.groupDate = g.date;
+  cfg.groupName = g.name;
+}
+
+// ── Group Select (shared) ──
+function populateGroupSelects() {
+  const gameEl = document.getElementById('groups-select');
+  const chipEl = document.getElementById('chip-groups-select');
+  if (!groups.length) {
+    const empty = '<option value="">グループがありません</option>';
+    if (gameEl) gameEl.innerHTML = empty;
+    if (chipEl)  chipEl.innerHTML = empty;
+    selectedGid = null; selectedChipGid = null;
+    updateGroupBadge();
+    return;
+  }
+  const opts = groups.map(g =>
+    `<option value="${g.id}">${fmtDate(g.date)} · ${esc(g.name)}</option>`
+  ).join('');
+  if (gameEl) gameEl.innerHTML = opts;
+  if (chipEl)  chipEl.innerHTML = opts;
+  if (!selectedGid || !groups.find(x => x.id === selectedGid)) selectedGid = groups[0].id;
+  if (gameEl) gameEl.value = selectedGid;
+  if (!selectedChipGid || !groups.find(x => x.id === selectedChipGid)) selectedChipGid = groups[0].id;
+  if (chipEl) chipEl.value = selectedChipGid;
+  updateGroupBadge();
+}
+
+function onGameGroupSelect() {
+  selectedGid = document.getElementById('groups-select').value || null;
+  updateGroupBadge();
+}
+
+function onChipGroupSelect() {
+  selectedChipGid = document.getElementById('chip-groups-select').value || null;
+}
+
+// ── Player Count / Rank Points ──
+function setPlayerCount(el, count) {
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  cfg.playerCount = count;
+  cfg.rankPoints = [...(RANK_DEFAULTS[count] || RANK_DEFAULTS[4])];
+  cfg.selectedPids = [];
+  updateRankPointsUI();
+  buildPlayerGrid();
+  updateSelectedCount();
+  buildGameRows();
+}
+
+function updateRankPointsUI() {
+  const n = cfg.playerCount;
+  const labels = ['1位','2位','3位','4位','5位'];
+  const defs   = RANK_DEFAULTS[n] || RANK_DEFAULTS[4];
+  const el = document.getElementById('rank-points-container');
+  el.innerHTML = `<div class="rank-pt-grid">` +
+    Array.from({length: n}, (_, i) => `
+      <div class="rank-pt-row">
+        <span class="rank-pt-label">${labels[i]}</span>
+        <input type="number" inputmode="decimal" class="rank-pt-input"
+               value="${cfg.rankPoints[i] !== undefined ? cfg.rankPoints[i] : defs[i]}"
+               oninput="cfg.rankPoints[${i}]=parseInt(this.value)||0; updateRankSum()">
+        <span class="rank-pt-suffix">pt</span>
+      </div>`
+    ).join('') + `</div>
+    <div class="rank-sum-display" id="rank-sum-display"></div>`;
+  updateRankSum();
+}
+
+function updateRankSum() {
+  const inputs = document.querySelectorAll('.rank-pt-input');
+  let sum = 0;
+  inputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
+
+  const el = document.getElementById('rank-sum-display');
+  if (el) {
+    const str = (sum >= 0 ? '+' : '') + sum.toLocaleString();
+    el.textContent = `順位点合計：${str} pt`;
+    el.style.color = sum === 0 ? 'var(--success)' : 'var(--danger)';
+  }
+
+  const btn = document.getElementById('submit-game-btn');
+  if (btn && btn.style.display !== 'none') {
+    btn.disabled = (sum !== 0);
+  }
+}
+
+// ── Player Selection ──
+function buildPlayerGrid() {
+  const el = document.getElementById('player-grid-s2');
+  if (!players.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:14px">プレイヤーを追加してください</div>'; return;
+  }
+  el.innerHTML = players.map(p => {
+    const sel = cfg.selectedPids.includes(String(p.id));
+    return `<button class="player-chip ${sel ? 'selected' : ''}" onclick="toggleGamePlayer('${p.id}',this)">${esc(p.name)}</button>`;
+  }).join('');
+}
+
+function toggleGamePlayer(pid, el) {
+  pid = String(pid);
+  const idx = cfg.selectedPids.indexOf(pid);
+  if (idx >= 0) {
+    cfg.selectedPids.splice(idx, 1);
+    el.classList.remove('selected');
+  } else {
+    if (cfg.selectedPids.length >= cfg.playerCount) {
+      toast(`${cfg.playerCount}名まで選択できます`, 'error'); return;
+    }
+    cfg.selectedPids.push(pid);
+    el.classList.add('selected');
+  }
+  updateSelectedCount();
+  buildGameRows();
+}
+
+function updateSelectedCount() {
+  document.getElementById('selected-count').textContent = `${cfg.selectedPids.length}/${cfg.playerCount}名 選択中`;
+}
+
+// ── Game Rows ──
+function buildGameRows() {
+  const el       = document.getElementById('game-rows');
+  const baseHint = document.getElementById('base-label');
+  if (!cfg.selectedPids.length) {
+    el.innerHTML = '';
+    baseHint.textContent = '参加者を選択すると入力欄が表示されます';
+    updateDiffSum();
+    return;
+  }
+  const base = BASE_POINTS[cfg.playerCount] || '25,000';
+  baseHint.textContent = `基準点 ${base}pt からの差分を入力（合計が0になるよう入力）`;
+  el.innerHTML = cfg.selectedPids.map(pid => {
+    const player = players.find(p => String(p.id) === String(pid));
+    return `<div class="game-row">
+      <div class="game-row-name">${esc(player ? player.name : pid)}</div>
+      <div class="game-row-input">
+        <input type="number" inputmode="decimal" class="form-input"
+               placeholder="例: -2000" id="diff-${pid}" oninput="updateDiffSum()">
+      </div>
+      <span class="game-row-suffix">pt</span>
+    </div>`;
+  }).join('');
+  document.getElementById('after-submit').style.display = 'none';
+  document.getElementById('submit-game-btn').style.display = 'flex';
+  updateRankSum();
+  updateDiffSum();
+}
+
+function updateDiffSum() {
+  let sum = 0, filled = 0;
+  cfg.selectedPids.forEach(pid => {
+    const inp = document.getElementById(`diff-${pid}`);
+    if (inp && inp.value !== '') {
+      const v = parseInt(inp.value);
+      if (!isNaN(v)) { sum += v; filled++; }
+    }
+  });
+  const el   = document.getElementById('diff-sum');
+  const hint = document.getElementById('diff-hint');
+  const n    = cfg.selectedPids.length;
+  if (n === 0) {
+    el.textContent = '未入力'; el.className = 'score-val warn';
+    hint.textContent = '参加者を選択してください'; return;
+  }
+  el.textContent = filled === 0 ? '未入力' : (sum >= 0 ? '+' : '') + sum.toLocaleString() + ' pt';
+  if (filled < n) {
+    el.className = 'score-val warn';
+    hint.textContent = `残り ${n - filled} 名を入力してください`;
+  } else if (sum === 0) {
+    el.className = 'score-val ok';
+    hint.textContent = '✅ 合計が0です。登録できます！';
+  } else {
+    el.className = 'score-val error';
+    hint.textContent = `❌ 合計が ${sum >= 0 ? '+' : ''}${sum.toLocaleString()} pt ずれています`;
+  }
+}
+
+async function submitGame() {
+  if (!cfg.groupDate) { toast('グループを選択してください', 'error'); return; }
+  if (cfg.selectedPids.length !== cfg.playerCount) {
+    toast(`${cfg.playerCount}名選択してください`, 'error'); return;
+  }
+
+  // Validate rank sum
+  const inputs = document.querySelectorAll('.rank-pt-input');
+  let rankSum = 0;
+  inputs.forEach((inp, i) => {
+    cfg.rankPoints[i] = parseInt(inp.value) || 0;
+    rankSum += cfg.rankPoints[i];
+  });
+  if (rankSum !== 0) { toast('順位点の合計が0ではありません', 'error'); return; }
+
+  let sum = 0;
+  const entries = [];
+  for (const pid of cfg.selectedPids) {
+    const inp = document.getElementById(`diff-${pid}`);
+    if (!inp || inp.value === '') { toast('全員の差分を入力してください', 'error'); return; }
+    const diff = parseInt(inp.value);
+    if (isNaN(diff)) { toast('有効な数値を入力してください', 'error'); return; }
+    sum += diff;
+    entries.push({ player_id: pid, diff });
+  }
+  if (sum !== 0) { toast(`合計が ${sum >= 0 ? '+' : ''}${sum} pt ずれています`, 'error'); return; }
+
+  const sorted = [...entries].sort((a, b) => b.diff - a.diff);
+  const rankMap = {};
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i].diff === sorted[i-1].diff) {
+      rankMap[sorted[i].player_id] = rankMap[sorted[i-1].player_id];
+    } else {
+      rankMap[sorted[i].player_id] = i + 1;
+    }
+  }
+
+  const rankBonuses = {};
+  const uniqueRanks = [...new Set(Object.values(rankMap))].sort((a, b) => a - b);
+  uniqueRanks.forEach(r => {
+    const tied   = entries.filter(e => rankMap[e.player_id] === r);
+    const idxArr = Array.from({length: tied.length}, (_, j) => r - 1 + j);
+    const avg    = Math.round(idxArr.reduce((s, idx) => s + (cfg.rankPoints[idx] || 0), 0) / tied.length);
+    tied.forEach(e => { rankBonuses[e.player_id] = avg; });
+  });
+
+  const btn = document.getElementById('submit-game-btn');
+  btn.disabled = true; btn.textContent = '登録中...';
+
+  const { data: gameData, error: gameErr } = await sb.from('games').insert({
+    date: cfg.groupDate,
+    group_name: cfg.groupName || null,
+    player_count: cfg.playerCount
+  }).select().single();
+
+  if (gameErr) {
+    btn.disabled = false; btn.textContent = '✅ 対局登録';
+    toast('登録に失敗しました', 'error'); return;
+  }
+
+  const results = entries.map(e => ({
+    game_id:   gameData.id,
+    player_id: e.player_id,
+    rank:      rankMap[e.player_id],
+    score_pt:  e.diff,
+    bonus_pt:  rankBonuses[e.player_id] || 0,
+    total_pt:  e.diff + (rankBonuses[e.player_id] || 0)
+  }));
+
+  const { error: resErr } = await sb.from('game_results').insert(results);
+  btn.disabled = false; btn.textContent = '✅ 対局登録';
+
+  if (resErr) { toast('成績の登録に失敗しました', 'error'); return; }
+
+  btn.style.display = 'none';
+  document.getElementById('after-submit').style.display = 'block';
+  document.getElementById('daily-link').href = `daily.html?date=${cfg.groupDate}`;
+
+  cfg.selectedPids.forEach(pid => {
+    const inp = document.getElementById(`diff-${pid}`);
+    if (inp) inp.value = '';
+  });
+  updateDiffSum();
+}
+
+function continueInput() {
+  document.getElementById('after-submit').style.display = 'none';
+  const btn = document.getElementById('submit-game-btn');
+  btn.style.display = 'flex';
+  cfg.selectedPids.forEach(pid => {
+    const inp = document.getElementById(`diff-${pid}`);
+    if (inp) inp.value = '';
+  });
+  updateRankSum();
+  updateDiffSum();
+  document.getElementById('game-rows').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Chip Settlement ──
+function buildChipPlayerGrid() {
+  const el = document.getElementById('chip-player-grid');
+  if (!players.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:14px">プレイヤーを追加してください</div>'; return;
+  }
+  el.innerHTML = players.map(p => {
+    const sel = selectedChipPids.includes(String(p.id));
+    return `<button class="player-chip ${sel ? 'selected' : ''}" onclick="toggleChipPlayer('${p.id}',this)">${esc(p.name)}</button>`;
+  }).join('');
+}
+
+function toggleChipPlayer(pid, el) {
+  pid = String(pid);
+  const idx = selectedChipPids.indexOf(pid);
+  if (idx >= 0) {
+    selectedChipPids.splice(idx, 1);
+    el.classList.remove('selected');
+  } else {
+    selectedChipPids.push(pid);
+    el.classList.add('selected');
+  }
+  renderChipInputs();
+}
+
+function renderChipInputs() {
+  const card = document.getElementById('chip-inputs-card');
+  const el   = document.getElementById('chip-inputs');
+  if (!selectedChipPids.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  el.innerHTML = selectedChipPids.map(pid => {
+    const player = players.find(p => String(p.id) === String(pid));
+    return `<div class="chip-input-row">
+      <span class="chip-input-name">${esc(player ? player.name : '?')}</span>
+      <input type="number" inputmode="decimal" class="form-input chip-input-field"
+             id="chipval-${pid}" placeholder="枚数" oninput="updateChipSum()">
+    </div>`;
+  }).join('') + `<div class="chip-sum-display" id="chip-sum-display"></div>`;
+  updateChipSum();
+}
+
+function updateChipSum() {
+  let sum = 0;
+  selectedChipPids.forEach(pid => {
+    const inp = document.getElementById(`chipval-${pid}`);
+    if (inp && inp.value !== '') sum += parseInt(inp.value) || 0;
+  });
+  const el = document.getElementById('chip-sum-display');
+  if (el) {
+    const str = (sum >= 0 ? '+' : '') + sum.toLocaleString();
+    el.textContent = `チップ合計：${str} 枚`;
+    el.style.color = sum === 0 ? 'var(--success)' : 'var(--danger)';
+  }
+  const btn = document.getElementById('chip-submit-btn');
+  if (btn) btn.disabled = (sum !== 0);
+}
+
+async function submitChips() {
+  if (!selectedChipGid) { toast('グループを選択してください', 'error'); return; }
+  if (!selectedChipPids.length) { toast('プレイヤーを選択してください', 'error'); return; }
+  const g = groups.find(x => x.id === selectedChipGid);
+  if (!g) { toast('グループが見つかりません', 'error'); return; }
+  const unit = parseInt(document.getElementById('chip-unit').value) || 0;
+  const entries = [];
+  for (const pid of selectedChipPids) {
+    const inp = document.getElementById(`chipval-${pid}`);
+    if (!inp || inp.value === '') { toast('全員の枚数を入力してください', 'error'); return; }
+    const chip_count = parseInt(inp.value) || 0;
+    entries.push({ date: g.date, group_name: g.name, player_id: pid, chip_count, chip_pt: chip_count * unit });
+  }
+  const btn = document.getElementById('chip-submit-btn');
+  btn.disabled = true; btn.textContent = '登録中...';
+  const { error } = await sb.from('chip_settlements').insert(entries);
+  btn.disabled = false; btn.textContent = '✅ チップ精算を登録';
+  if (error) {
+    console.error('chip_settlements insert error:', error);
+    toast('登録に失敗しました: ' + (error.message || error.code || 'エラー'), 'error');
+    return;
+  }
+  toast('チップ精算を登録しました ✓', 'success');
+  selectedChipPids = [];
+  buildChipPlayerGrid();
+  renderChipInputs();
+}
+
+// ── Player Management ──
+function renderPlayerList() {
+  const el = document.getElementById('player-list');
+  if (!players.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div>プレイヤーがいません</div>'; return;
+  }
+  el.innerHTML = players.map(p => {
+    const d = new Date(p.created_at).toLocaleDateString('ja-JP', { year:'numeric', month:'short', day:'numeric' });
+    return `<div class="player-list-item">
+      <span class="player-list-name">${esc(p.name)}</span>
+      <span class="player-list-date">${d}</span>
+    </div>`;
+  }).join('');
+}
+
+async function addPlayer() {
+  const name = document.getElementById('new-player-name').value.trim();
+  if (!name) { toast('名前を入力してください', 'error'); return; }
+  const { data, error } = await sb.from('players').insert({ name }).select().single();
+  if (error) { toast('登録に失敗しました', 'error'); return; }
+  document.getElementById('new-player-name').value = '';
+  players.push(data);
+  players.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  buildPlayerGrid();
+  buildChipPlayerGrid();
+  renderPlayerList();
+  toast(`${name} を登録しました ✓`, 'success');
+}
+
+// ── Utilities ──
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${y}年${parseInt(m)}月${parseInt(day)}日`;
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>成績確認 | 公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:80px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; }
+    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; }
+
+    .main-tab-bar { display:flex; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:56px; z-index:90; }
+    .main-tab { flex:1; padding:14px 4px; border:none; background:transparent; color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; min-height:50px; border-bottom:2px solid transparent; }
+    .main-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.05); border-radius:16px; padding:16px; margin-bottom:12px; }
+    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+
+    .tab-bar { display:flex; background:#f3f4f6; border-radius:12px; padding:4px; gap:3px; margin-bottom:16px; }
+    .tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; color:var(--muted); border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; min-height:44px; font-family:inherit; }
+    .tab-btn.active { background:var(--primary); color:#fff; }
+
+    /* Player Stats */
+    .player-stat { background:#f9fafb; border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
+    .player-stat-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .player-stat-rank { font-size:12px; color:var(--muted); margin-bottom:2px; }
+    .player-stat-name { font-size:17px; font-weight:900; color:var(--text); }
+    .player-stat-pt   { font-size:20px; font-weight:900; }
+    .stat-row  { display:flex; gap:8px; margin-top:8px; }
+    .stat-item { flex:1; text-align:center; background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 4px; }
+    .stat-item-value { font-size:16px; font-weight:700; color:var(--text); }
+    .stat-item-label { font-size:11px; color:var(--muted); margin-top:2px; }
+    .rank-dist { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .rank-dist-chip { padding:5px 10px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid var(--border); color:var(--muted); background:#fff; }
+    .rank-dist-chip.r1 { background:#fef3c7; color:#d97706; border-color:#fde68a; }
+    .rank-dist-chip.r2 { background:#f1f5f9; color:#64748b; border-color:#cbd5e1; }
+    .rank-dist-chip.r3 { background:#fdf4e7; color:#a16207; border-color:#fde68a; }
+    .rank-dist-chip.r4 { background:#fef2f2; color:#ef4444; border-color:#fecaca; }
+
+    .positive { color:var(--success); }
+    .negative { color:var(--danger); }
+    .neutral  { color:var(--muted); }
+
+    /* Graph Tab */
+    .mode-toggle { display:flex; gap:8px; margin-bottom:14px; }
+    .mode-btn { flex:1; padding:10px; border:1.5px solid var(--border); border-radius:10px; background:#f9fafb; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; min-height:44px; text-align:center; }
+    .mode-btn.active { background:rgba(79,70,229,0.08); border-color:var(--primary); color:var(--primary); }
+
+    .form-label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:7px; }
+    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:11px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
+    .form-input:focus { border-color:var(--primary); background:#fff; }
+    select.form-input { background:#f9fafb; }
+    .form-row { display:flex; gap:8px; margin-bottom:12px; }
+    .form-row > div { flex:1; }
+
+    .player-filter { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+    .pf-chip { padding:7px 14px; border:1.5px solid var(--border); border-radius:20px; background:#f9fafb; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .pf-chip.active { background:rgba(79,70,229,0.1); border-color:var(--primary); color:var(--primary); }
+
+    .chart-wrap { position:relative; height:240px; margin-top:8px; }
+    .chart-legend { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; }
+    .legend-item { display:flex; align-items:center; gap:5px; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-danger  { background:linear-gradient(135deg,var(--danger),#dc2626); color:#fff; }
+    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
+    .btn-sm { min-height:40px; padding:8px 14px; font-size:13px; }
+    .btn-xs { min-height:34px; padding:6px 12px; font-size:12px; width:auto; }
+
+    /* History Tab */
+    .filter-row { display:flex; gap:8px; margin-bottom:12px; align-items:flex-end; }
+    .filter-row > div { flex:1; }
+    .game-card { background:#f9fafb; border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; }
+    .game-card-header { display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
+    .game-card-header:active { background:rgba(0,0,0,0.03); }
+    .game-meta { flex:1; min-width:0; }
+    .game-date { font-size:12px; color:var(--muted); }
+    .game-title { font-size:14px; font-weight:700; color:var(--text); margin-top:2px; }
+    .game-expand-icon { font-size:16px; color:var(--muted); flex-shrink:0; transition:transform 0.2s; }
+    .game-card.expanded .game-expand-icon { transform:rotate(180deg); }
+    .game-card-body { display:none; padding:0 14px 14px; }
+    .game-card.expanded .game-card-body { display:block; }
+    .result-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
+    .result-row:last-child { border-bottom:none; }
+    .result-rank { width:28px; height:28px; border-radius:50%; background:#e5e7eb; color:var(--muted); font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .result-rank.r1 { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+    .result-rank.r2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+    .result-rank.r3 { background:linear-gradient(135deg,#cd7c2f,#92400e); color:#fff; }
+    .result-name { font-size:14px; font-weight:700; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .result-pts { text-align:right; flex-shrink:0; }
+    .result-total { font-size:14px; font-weight:900; }
+    .result-sub { font-size:11px; color:var(--muted); }
+    .edit-input { width:80px; padding:7px 10px; background:#fff; border:1.5px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; outline:none; font-family:inherit; text-align:right; }
+    .edit-input:focus { border-color:var(--primary); }
+    .game-actions { display:flex; gap:8px; margin-top:12px; }
+
+    /* Chip settlement card */
+    .chip-card { background:rgba(245,158,11,0.08); border:1px solid var(--border); border-left:3px solid #f59e0b; border-radius:14px; margin-bottom:10px; overflow:hidden; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
+    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:32px; color:var(--muted); }
+    .empty-icon  { font-size:44px; margin-bottom:10px; }
+    .divider { border:none; border-top:1px solid var(--border); margin:12px 0; }
+    .hint { font-size:12px; color:var(--dim); margin-top:6px; }
+
+    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .toast.success { border-color:#10b981; color:#10b981; }
+    .toast.error   { border-color:#ef4444; color:#ef4444; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge">成績</div>
+</header>
+
+<div class="main-tab-bar">
+  <button class="main-tab active" onclick="switchMainTab(this,'stats')">📊 個人成績</button>
+  <button class="main-tab" onclick="switchMainTab(this,'graph')">📈 グラフ</button>
+  <button class="main-tab" onclick="switchMainTab(this,'hist')">📝 履歴・修正</button>
+</div>
+
+<!-- ═══ TAB: 個人成績 ═══ -->
+<div id="tab-stats" class="tab-content active">
+  <div class="container">
+    <div class="card" style="padding-bottom:8px">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchStatTab(this,3)">3人打ち</button>
+        <button class="tab-btn" onclick="switchStatTab(this,4)">4人打ち</button>
+        <button class="tab-btn" onclick="switchStatTab(this,5)">5人打ち</button>
+      </div>
+      <div id="stats-content"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: グラフ ═══ -->
+<div id="tab-graph" class="tab-content">
+  <div class="container">
+    <div class="card">
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-1" onclick="switchGraphMode(1)">📅 日付で絞り込み</button>
+        <button class="mode-btn" id="mode-2" onclick="switchGraphMode(2)">📆 期間で絞り込み</button>
+      </div>
+
+      <!-- Mode 1 -->
+      <div id="graph-mode-1">
+        <div style="margin-bottom:12px">
+          <label class="form-label">対局日を選択</label>
+          <select id="g1-date" class="form-input" onchange="renderGraph()">
+            <option value="">日付を選択...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mode 2 -->
+      <div id="graph-mode-2" style="display:none">
+        <div class="form-row">
+          <div>
+            <label class="form-label">開始</label>
+            <input type="date" id="g2-from" class="form-input" onchange="renderGraph()">
+          </div>
+          <div>
+            <label class="form-label">終了</label>
+            <input type="date" id="g2-to" class="form-input" onchange="renderGraph()">
+          </div>
+        </div>
+      </div>
+
+      <label class="form-label">プレイヤー絞り込み</label>
+      <div id="player-filter" class="player-filter"></div>
+
+      <div id="chart-legend" class="chart-legend"></div>
+      <div class="chart-wrap"><canvas id="main-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: 履歴・修正 ═══ -->
+<div id="tab-hist" class="tab-content">
+  <div class="container">
+    <div class="card">
+      <div class="card-header">🔍 対局を絞り込む</div>
+      <div class="form-row">
+        <div>
+          <label class="form-label">開始日</label>
+          <input type="date" id="hist-from" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">終了日</label>
+          <input type="date" id="hist-to" class="form-input">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="loadHistory()">絞り込む</button>
+    </div>
+    <div id="hist-list"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="index.html" class="nav-link"><span class="nav-icon">🏠</span>ホーム</a>
+  <a href="input.html" class="nav-link"><span class="nav-icon">✏️</span>入力</a>
+  <a href="history.html" class="nav-link active"><span class="nav-icon">📊</span>成績</a>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+const DATA_START = '2026-04-07';
+const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#4ade80'];
+
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let S = { players:[], games:[], results:[], chips:[], statTab:3 };
+let histAllResults = [];
+let histChipGroupsList = [];
+let playerDatasetMap = {};
+let graphMode = 1;
+let selectedPlayerIds = new Set();
+let mainChart = null;
+
+async function init() {
+  setDefaultDates();
+  try {
+    await loadData();
+    renderStats();
+    buildPlayerFilter();
+    populateDateSelect();
+    renderGraph();
+    loadHistory();
+  } catch(e) {
+    console.error(e);
+    toast('データの読み込みに失敗しました', 'error');
+  }
+}
+
+function setDefaultDates() {
+  const today = new Date().toISOString().split('T')[0];
+  ['hist-from','g2-from'].forEach(id => { const el=document.getElementById(id); if(el) el.value=DATA_START; });
+  ['hist-to','g2-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
+}
+
+async function loadData() {
+  const [r1, r2, r3] = await Promise.all([
+    sb.from('players').select('*').order('name'),
+    sb.from('games').select('*').gte('date', DATA_START).order('date').order('created_at'),
+    sb.from('chip_settlements').select('*').gte('date', DATA_START)
+  ]);
+  S.players = r1.data || [];
+  S.games   = r2.data || [];
+  S.chips   = r3.data || [];
+  if (S.games.length > 0) {
+    const ids = S.games.map(g => g.id);
+    const { data } = await sb.from('game_results').select('*').in('game_id', ids);
+    S.results = data || [];
+  }
+}
+
+function switchMainTab(el, tab) {
+  document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  if (tab === 'graph') renderGraph();
+}
+
+function switchStatTab(el, tab) {
+  el.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  S.statTab = tab;
+  renderStats();
+}
+
+// ── Stats ──
+function computeStats(pcFilter) {
+  const gameSet = new Set(S.games.filter(g => !pcFilter || g.player_count === pcFilter).map(g => g.id));
+  const map = {};
+  S.players.forEach(p => { map[p.id] = { id:p.id, name:p.name, games:0, totalPt:0, rankSum:0, r1:0, r2:0, r3:0, r4:0, r5:0 }; });
+  S.results.filter(r => gameSet.has(r.game_id)).forEach(r => {
+    const s = map[r.player_id]; if (!s) return;
+    s.games++; s.totalPt += r.total_pt; s.rankSum += r.rank;
+    if (r.rank===1) s.r1++; else if (r.rank===2) s.r2++; else if (r.rank===3) s.r3++; else if (r.rank===4) s.r4++; else if (r.rank===5) s.r5++;
+  });
+  return Object.values(map).filter(s => s.games > 0).sort((a, b) => b.totalPt - a.totalPt);
+}
+
+function renderStats() {
+  const filter = S.statTab; // always a number: 3, 4, or 5
+  const stats  = computeStats(filter);
+  const el     = document.getElementById('stats-content');
+  if (!stats.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div>データがありません</div>'; return;
+  }
+  el.innerHTML = stats.map((s, i) => {
+    const rank = i + 1;
+    const pts  = s.totalPt;
+    const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
+    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
+    const avg  = (s.rankSum / s.games).toFixed(2);
+    const pct  = n => s.games ? (n / s.games * 100).toFixed(0) + '%' : '0%';
+    const r4h  = filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
+    const r5h  = filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
+    return `<div class="player-stat">
+      <div class="player-stat-header">
+        <div>
+          <div class="player-stat-rank">${rank}位</div>
+          <div class="player-stat-name">${esc(s.name)}</div>
+        </div>
+        <div class="player-stat-pt ${cls}">${str}</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-item"><div class="stat-item-value">${s.games}</div><div class="stat-item-label">対局数</div></div>
+        <div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>
+        <div class="stat-item"><div class="stat-item-value">${pct(s.r1)}</div><div class="stat-item-label">1位率</div></div>
+      </div>
+      <div class="rank-dist">
+        <div class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</div>
+        <div class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</div>
+        <div class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</div>
+        ${r4h}${r5h}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Graph ──
+function switchGraphMode(mode) {
+  graphMode = mode;
+  document.getElementById('mode-1').classList.toggle('active', mode === 1);
+  document.getElementById('mode-2').classList.toggle('active', mode === 2);
+  document.getElementById('graph-mode-1').style.display = mode === 1 ? 'block' : 'none';
+  document.getElementById('graph-mode-2').style.display = mode === 2 ? 'block' : 'none';
+  renderGraph();
+}
+
+function buildPlayerFilter() {
+  selectedPlayerIds = new Set(S.players.map(p => String(p.id)));
+  const el = document.getElementById('player-filter');
+  el.innerHTML = S.players.map(p =>
+    `<button class="pf-chip active" id="pf-${p.id}" onclick="togglePlayerFilter('${p.id}',this)">${esc(p.name)}</button>`
+  ).join('');
+}
+
+function togglePlayerFilter(pid, el) {
+  const strPid = String(pid);
+  if (selectedPlayerIds.has(strPid)) {
+    selectedPlayerIds.delete(strPid);
+    el.classList.remove('active');
+  } else {
+    selectedPlayerIds.add(strPid);
+    el.classList.add('active');
+  }
+  if (mainChart && playerDatasetMap[strPid] !== undefined) {
+    mainChart.data.datasets[playerDatasetMap[strPid]].hidden = !selectedPlayerIds.has(strPid);
+    mainChart.update('none');
+  } else {
+    renderGraph();
+  }
+}
+
+function populateDateSelect() {
+  const dates = [...new Set(S.games.map(g => g.date))].sort((a, b) => b.localeCompare(a));
+  const sel = document.getElementById('g1-date');
+  sel.innerHTML = '<option value="">日付を選択...</option>' +
+    dates.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
+  if (dates.length) sel.value = dates[0];
+}
+
+function renderGraph() {
+  if (graphMode === 1) renderGraphMode1();
+  else renderGraphMode2();
+}
+
+function renderGraphMode1() {
+  playerDatasetMap = {};
+  const date = document.getElementById('g1-date').value;
+  const legendEl = document.getElementById('chart-legend');
+  if (!date) { clearChart(); legendEl.innerHTML = ''; return; }
+
+  const dayGames = S.games.filter(g => g.date === date).sort((a, b) =>
+    (a.created_at || '').localeCompare(b.created_at || '')
+  );
+  if (!dayGames.length) {
+    clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この日の対局データがありません</div>'; return;
+  }
+
+  const gameIds  = dayGames.map(g => g.id);
+  const dayChips = (S.chips || []).filter(c => c.date === date);
+  const hasChips = dayChips.some(c => c.chip_pt);
+  const labels   = dayGames.map((_, i) => `第${i+1}局`);
+  if (hasChips) labels.push('Chip');
+
+  const datasets = [];
+  const legendItems = [];
+  let dsIdx = 0;
+
+  S.players.forEach((p, idx) => {
+    const played = gameIds.some(gid => S.results.find(r => r.game_id === gid && String(r.player_id) === String(p.id)));
+    if (!played) return;
+    let cum = 0;
+    const data = gameIds.map(gid => {
+      const r = S.results.find(x => x.game_id === gid && String(x.player_id) === String(p.id));
+      if (r) cum += r.total_pt;
+      return cum;
+    });
+    if (hasChips) {
+      const chipRec = dayChips.find(c => String(c.player_id) === String(p.id));
+      cum += chipRec ? (chipRec.chip_pt || 0) : 0;
+      data.push(cum);
+    }
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const hidden = !selectedPlayerIds.has(String(p.id));
+    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:5, borderWidth:2, hidden });
+    legendItems.push({ name:p.name, color, pid: String(p.id) });
+    playerDatasetMap[String(p.id)] = dsIdx++;
+  });
+
+  legendEl.innerHTML = legendItems.map(l =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--muted)">${esc(l.name)}</span></div>`
+  ).join('');
+
+  drawChart(labels, datasets, false);
+}
+
+function renderGraphMode2() {
+  playerDatasetMap = {};
+  const from = document.getElementById('g2-from').value;
+  const to   = document.getElementById('g2-to').value;
+  const legendEl = document.getElementById('chart-legend');
+  if (!from || !to) { clearChart(); legendEl.innerHTML = ''; return; }
+
+  const rangeGames = S.games.filter(g => g.date >= from && g.date <= to)
+    .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.created_at||'').localeCompare(b.created_at||''));
+
+  if (!rangeGames.length) {
+    clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この期間のデータがありません</div>'; return;
+  }
+
+  // チップイベントをゲームイベントと統合（各日の最後に挿入）
+  const rangeChips = (S.chips || []).filter(c => c.date >= from && c.date <= to && c.chip_pt);
+  const chipByDate = {};
+  rangeChips.forEach(c => {
+    if (!chipByDate[c.date]) chipByDate[c.date] = [];
+    chipByDate[c.date].push(c);
+  });
+  const gameEvents = rangeGames.map(g => ({ type:'game', date:g.date, sortKey:g.date+'|'+(g.created_at||''), data:g }));
+  const chipEvents = Object.entries(chipByDate).map(([date, records]) => ({
+    type:'chip', date, sortKey:date+'|zz', records
+  }));
+  const allEvents = [...gameEvents, ...chipEvents].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  let gameCount = 0;
+  const labels = allEvents.map(evt =>
+    evt.type === 'game' ? `${fmtDateShort(evt.date)}-${++gameCount}` : `${fmtDateShort(evt.date)}-Chip`
+  );
+
+  const datasets = [];
+  const legendItems = [];
+  let dsIdx = 0;
+
+  S.players.forEach((p, idx) => {
+    let cum = 0;
+    const data = allEvents.map(evt => {
+      if (evt.type === 'game') {
+        const r = S.results.find(x => x.game_id === evt.data.id && String(x.player_id) === String(p.id));
+        if (r) cum += r.total_pt;
+      } else {
+        const chipRec = evt.records.find(c => String(c.player_id) === String(p.id));
+        if (chipRec) cum += (chipRec.chip_pt || 0);
+      }
+      return cum;
+    });
+    if (data.every(v => v === 0)) return;
+    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const hidden = !selectedPlayerIds.has(String(p.id));
+    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:3, borderWidth:2, hidden });
+    legendItems.push({ name:p.name, color, pid: String(p.id) });
+    playerDatasetMap[String(p.id)] = dsIdx++;
+  });
+
+  legendEl.innerHTML = legendItems.map(l =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--muted)">${esc(l.name)}</span></div>`
+  ).join('');
+
+  drawChart(labels, datasets, true);
+}
+
+function drawChart(labels, datasets, zeroline) {
+  const canvas = document.getElementById('main-chart');
+  if (mainChart) mainChart.destroy();
+  if (!datasets.length) { clearChart(); return; }
+  mainChart = new Chart(canvas, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1f2937', titleColor:'#9ca3af', bodyColor:'#f9fafb',
+          borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+          callbacks:{ label: ctx => { const v=ctx.parsed.y; return `${ctx.dataset.label}: ${v>=0?'+':''}${v.toLocaleString()} pt`; } }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:'#9ca3af', font:{size:10}, maxRotation:45 }, grid:{ color:'#f3f4f6' } },
+        y:{
+          ticks:{ color:'#9ca3af', font:{size:11}, callback: v => (v>=0?'+':'')+v.toLocaleString() },
+          grid:{ color:'#f3f4f6' }
+        }
+      }
+    }
+  });
+}
+
+function clearChart() {
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+}
+
+// ── History / Edit ──
+async function loadHistory() {
+  const from = document.getElementById('hist-from').value;
+  const to   = document.getElementById('hist-to').value;
+  const el   = document.getElementById('hist-list');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
+
+  let gQuery = sb.from('games').select('*').gte('date', DATA_START).order('date', {ascending:false}).order('created_at', {ascending:false});
+  if (from) gQuery = gQuery.gte('date', from);
+  if (to)   gQuery = gQuery.lte('date', to);
+  const { data: games, error } = await gQuery;
+
+  let cQuery = sb.from('chip_settlements').select('*').gte('date', DATA_START).order('date', {ascending:false});
+  if (from) cQuery = cQuery.gte('date', from);
+  if (to)   cQuery = cQuery.lte('date', to);
+  const { data: chips } = await cQuery;
+  const allChips = chips || [];
+
+  const safeGames = games || [];
+  let allResults = [];
+  if (safeGames.length > 0) {
+    const ids = safeGames.map(g => g.id);
+    const { data: results } = await sb.from('game_results').select('*').in('game_id', ids);
+    allResults = results || [];
+  }
+  histAllResults = allResults;
+
+  if (error || (!safeGames.length && !allChips.length)) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div>対局データがありません</div>'; return;
+  }
+
+  // Group chip settlements by date + group_name
+  const chipGroupsMap = {};
+  allChips.forEach(c => {
+    const key = c.date + '|' + (c.group_name || '');
+    if (!chipGroupsMap[key]) chipGroupsMap[key] = { date: c.date, group_name: c.group_name || '', created_at: c.created_at, records: [] };
+    chipGroupsMap[key].records.push(c);
+  });
+  histChipGroupsList = Object.values(chipGroupsMap);
+
+  // Build unified timeline (descending)
+  const gameEvents = safeGames.map(g => ({ type:'game', sortKey: g.date + '|' + (g.created_at || ''), data: g }));
+  const chipEvents = histChipGroupsList.map((cg, i) => ({ type:'chip', sortKey: cg.date + '|' + (cg.created_at || ''), data: cg, chipIdx: i }));
+  const events = [...gameEvents, ...chipEvents].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+
+  el.innerHTML = events.map(evt => {
+    if (evt.type === 'game') {
+      const g = evt.data;
+      const gResults = allResults.filter(r => r.game_id === g.id).sort((a, b) => a.rank - b.rank);
+      const pcLabel  = g.player_count === 3 ? '3人' : g.player_count === 5 ? '5人' : '4人';
+      const gLabel   = g.group_name ? g.group_name : '対局';
+      const createdStr = fmtCreatedAt(g.created_at);
+      return `<div class="game-card" id="gc-${g.id}">
+        <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
+          <div class="game-meta">
+            <div class="game-date">${fmtDate(g.date)} · ${pcLabel}打ち · ${createdStr}</div>
+            <div class="game-title">${esc(gLabel)}</div>
+          </div>
+          <span class="game-expand-icon">▼</span>
+        </div>
+        <div class="game-card-body">
+          <div id="results-view-${g.id}">
+            ${gResults.map(r => {
+              const p   = S.players.find(x => String(x.id) === String(r.player_id));
+              const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
+              const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
+              const rc  = r.rank <= 3 ? `r${r.rank}` : '';
+              return `<div class="result-row">
+                <div class="result-rank ${rc}">${r.rank}</div>
+                <div class="result-name">${esc(p ? p.name : '?')}</div>
+                <div class="result-pts">
+                  <div class="result-total ${cls}">${str} pt</div>
+                  <div class="result-sub">${r.score_pt >= 0 ? '+' : ''}${r.score_pt} + ${r.bonus_pt >= 0 ? '+' : ''}${r.bonus_pt}</div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div class="game-actions">
+            <button class="btn btn-outline btn-sm" onclick="startEditGame('${g.id}')">✏️ 編集</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteGame('${g.id}')">🗑 削除</button>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      const cg = evt.data;
+      const idx = evt.chipIdx;
+      const createdStr = fmtCreatedAt(cg.created_at);
+      const groupLabel = cg.group_name ? ` · ${esc(cg.group_name)}` : '';
+      return `<div class="chip-card" id="chip-card-${idx}">
+        <div style="padding:13px 14px">
+          <div style="font-size:12px;color:var(--warning);font-weight:700;margin-bottom:8px">
+            🎯 チップ精算 · ${fmtDate(cg.date)}${groupLabel}${createdStr ? ' · ' + createdStr : ''}
+          </div>
+          <div id="chip-view-${idx}">
+            ${cg.records.map(c => {
+              const p   = S.players.find(x => String(x.id) === String(c.player_id));
+              const cls = c.chip_count > 0 ? 'positive' : c.chip_count < 0 ? 'negative' : 'neutral';
+              const countStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
+              const ptStr = c.chip_pt != null ? `  (${c.chip_pt >= 0 ? '+' : ''}${c.chip_pt.toLocaleString()} pt)` : '';
+              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(245,158,11,0.15)">
+                <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(p ? p.name : '?')}</span>
+                <span class="${cls}" style="font-size:14px;font-weight:900">${countStr}<span style="font-size:12px;font-weight:600;color:var(--muted)">${ptStr}</span></span>
+              </div>`;
+            }).join('')}
+            <div class="game-actions" style="margin-top:10px">
+              <button class="btn btn-outline btn-sm" onclick="startEditChip(${idx})">✏️ 編集</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteChipGroup(${idx})">🗑 削除</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+  }).join('');
+}
+
+function toggleGameCard(gid) {
+  document.getElementById(`gc-${gid}`).classList.toggle('expanded');
+}
+
+function startEditGame(gid) {
+  const gResults = histAllResults.filter(r => String(r.game_id) === String(gid)).sort((a, b) => a.rank - b.rank);
+  const viewEl   = document.getElementById(`results-view-${gid}`);
+
+  const rowData = gResults.map(r => {
+    const p = S.players.find(x => String(x.id) === String(r.player_id));
+    return { resultId: r.id, name: p ? p.name : '?', scorePt: r.score_pt, bonusPt: r.bonus_pt, totalPt: r.total_pt };
+  });
+
+  viewEl.innerHTML =
+  `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:#f9fafb;border-radius:8px">修正後の素点を入力（順位点は自動で再計算されます）</div>` +
+  rowData.map((r, i) => {
+    const beforeStr = (r.scorePt >= 0 ? '+' : '') + r.scorePt.toLocaleString() + ' pt（素点）';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(r.name)}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
+        <span style="color:var(--dim)">→</span>
+        <span style="font-size:12px;color:var(--muted)">修正後：</span>
+        <input type="number" inputmode="decimal" class="edit-input" id="edit-score-${gid}-${i}" value="${r.scorePt}">
+        <span style="font-size:12px;color:var(--muted)">pt</span>
+      </div>
+    </div>`;
+  }).join('') +
+  `<div style="margin-top:10px;display:flex;gap:8px">
+    <button class="btn btn-primary btn-sm" onclick="saveEditGame('${gid}')">保存</button>
+    <button class="btn btn-outline btn-sm" onclick="loadHistory()">キャンセル</button>
+  </div>`;
+
+  viewEl.dataset.rowData = JSON.stringify(rowData);
+}
+
+async function saveEditGame(gid) {
+  const viewEl  = document.getElementById(`results-view-${gid}`);
+  const rowData = JSON.parse(viewEl.dataset.rowData || '[]');
+  const inputs  = viewEl.querySelectorAll('.edit-input');
+
+  const updates = [];
+  inputs.forEach((inp, i) => {
+    const newScore = parseInt(inp.value);
+    if (!isNaN(newScore)) {
+      updates.push({ resultId: rowData[i].resultId, scorePt: newScore, bonusPt: rowData[i].bonusPt });
+    }
+  });
+
+  const sum = updates.reduce((s, u) => s + u.scorePt, 0);
+  if (sum !== 0) { toast(`差分合計が ${sum >= 0 ? '+' : ''}${sum} pt ずれています`, 'error'); return; }
+
+  const errors = [];
+  for (const upd of updates) {
+    const newTotal = upd.scorePt + upd.bonusPt;
+    const { error } = await sb.from('game_results').update({
+      score_pt: upd.scorePt,
+      total_pt: newTotal
+    }).eq('id', upd.resultId);
+    if (error) errors.push(error);
+  }
+
+  if (errors.length) { toast('一部の更新に失敗しました', 'error'); return; }
+  toast('更新しました ✓', 'success');
+  await loadData();
+  loadHistory();
+}
+
+async function deleteGame(gid) {
+  if (!confirm('この対局を削除しますか？')) return;
+  await sb.from('game_results').delete().eq('game_id', gid);
+  const { error } = await sb.from('games').delete().eq('id', gid);
+  if (error) { toast('削除に失敗しました', 'error'); return; }
+  toast('削除しました ✓', 'success');
+  S.games   = S.games.filter(g => g.id !== gid);
+  S.results = S.results.filter(r => r.game_id !== gid);
+  loadHistory();
+}
+
+// ── Chip Edit / Delete ──
+function startEditChip(idx) {
+  const cg = histChipGroupsList[idx];
+  if (!cg) return;
+  const viewEl = document.getElementById(`chip-view-${idx}`);
+
+  const unitRec = cg.records.find(c => c.chip_count !== 0 && c.chip_pt != null);
+  const derivedUnit = unitRec ? Math.abs(Math.round(unitRec.chip_pt / unitRec.chip_count)) : 300;
+
+  viewEl.innerHTML =
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px">
+      <span style="font-size:12px;color:var(--muted)">チップ単価：</span>
+      <input type="number" inputmode="numeric" class="edit-input" id="chip-edit-unit-${idx}" value="${derivedUnit}" style="width:80px">
+      <span style="font-size:12px;color:var(--muted)">pt/枚</span>
+    </div>` +
+  cg.records.map((c, i) => {
+    const p = S.players.find(x => String(x.id) === String(c.player_id));
+    const name = p ? p.name : '?';
+    const beforeStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
+    return `<div style="padding:10px 0;border-bottom:1px solid rgba(245,158,11,0.2)">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(name)}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
+        <span style="color:var(--dim)">→</span>
+        <span style="font-size:12px;color:var(--muted)">修正後：</span>
+        <input type="number" inputmode="decimal" class="edit-input" id="chip-edit-${idx}-${i}" value="${c.chip_count}">
+        <span style="font-size:12px;color:var(--muted)">枚</span>
+      </div>
+    </div>`;
+  }).join('') +
+  `<div id="chip-edit-sum-${idx}" style="font-size:13px;font-weight:700;margin-top:8px;color:var(--danger)"></div>
+  <div style="margin-top:10px;display:flex;gap:8px">
+    <button class="btn btn-primary btn-sm" onclick="saveEditChip(${idx})">保存</button>
+    <button class="btn btn-outline btn-sm" onclick="loadHistory()">キャンセル</button>
+  </div>`;
+
+  cg.records.forEach((_, i) => {
+    const inp = document.getElementById(`chip-edit-${idx}-${i}`);
+    if (inp) inp.addEventListener('input', () => updateChipEditSum(idx, cg.records.length));
+  });
+  document.getElementById(`chip-edit-unit-${idx}`).addEventListener('input', () => updateChipEditSum(idx, cg.records.length));
+  updateChipEditSum(idx, cg.records.length);
+}
+
+function updateChipEditSum(idx, count) {
+  let sum = 0;
+  for (let i = 0; i < count; i++) {
+    const inp = document.getElementById(`chip-edit-${idx}-${i}`);
+    if (inp) sum += parseInt(inp.value) || 0;
+  }
+  const el = document.getElementById(`chip-edit-sum-${idx}`);
+  if (!el) return;
+  const str = (sum >= 0 ? '+' : '') + sum;
+  el.textContent = `チップ合計：${str} 枚`;
+  el.style.color = sum === 0 ? 'var(--success)' : 'var(--danger)';
+}
+
+async function saveEditChip(idx) {
+  const cg = histChipGroupsList[idx];
+  if (!cg) return;
+
+  const unit = parseInt(document.getElementById(`chip-edit-unit-${idx}`)?.value) || 0;
+  const updates = cg.records.map((c, i) => {
+    const inp = document.getElementById(`chip-edit-${idx}-${i}`);
+    const chip_count = parseInt(inp ? inp.value : c.chip_count) || 0;
+    return { id: c.id, chip_count, chip_pt: chip_count * unit };
+  });
+
+  const sum = updates.reduce((s, u) => s + u.chip_count, 0);
+  if (sum !== 0) { toast(`チップ合計が ${sum >= 0 ? '+' : ''}${sum} 枚ずれています`, 'error'); return; }
+
+  const errors = [];
+  for (const upd of updates) {
+    const { error } = await sb.from('chip_settlements').update({ chip_count: upd.chip_count, chip_pt: upd.chip_pt }).eq('id', upd.id);
+    if (error) errors.push(error);
+  }
+
+  if (errors.length) { toast('一部の更新に失敗しました', 'error'); return; }
+  toast('チップ精算を更新しました ✓', 'success');
+  loadHistory();
+}
+
+async function deleteChipGroup(idx) {
+  const cg = histChipGroupsList[idx];
+  if (!cg) return;
+  const label = cg.group_name ? `${fmtDate(cg.date)} · ${cg.group_name}` : fmtDate(cg.date);
+  if (!confirm(`「${label}」のチップ精算をすべて削除しますか？`)) return;
+
+  const ids = cg.records.map(c => c.id);
+  const { error } = await sb.from('chip_settlements').delete().in('id', ids);
+  if (error) { toast('削除に失敗しました', 'error'); return; }
+  toast('チップ精算を削除しました ✓', 'success');
+  loadHistory();
+}
+
+// ── Utilities ──
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${y}年${parseInt(m)}月${parseInt(day)}日`;
+}
+
+function fmtDateShort(d) {
+  if (!d) return '';
+  const [, m, day] = d.split('-');
+  return `${parseInt(m)}/${parseInt(day)}`;
+}
+
+function fmtCreatedAt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())} 登録`;
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>
