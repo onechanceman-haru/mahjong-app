@@ -283,7 +283,10 @@ async function init() {
 
 function setDefaultDates() {
   const today = new Date().toISOString().split('T')[0];
-  const start = currentSeasonId ? '2020-01-01' : DATA_START;
+  // 開始日 = 終了日(今日)の1か月前
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  const start = d.toISOString().split('T')[0];
   ['hist-from','g2-from'].forEach(id => { const el=document.getElementById(id); if(el) el.value=start; });
   ['hist-to','g2-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
 }
