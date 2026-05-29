@@ -47,6 +47,23 @@
     .season-date { font-size:12px; color:var(--muted); }
     .season-actions { display:flex; gap:8px; margin-top:14px; }
 
+    .ranking-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:18px; margin-bottom:12px; }
+    .ranking-title { font-size:15px; font-weight:900; color:var(--text); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .ranking-row { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--border); }
+    .ranking-row:last-child { border-bottom:none; }
+    .rank-badge { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; flex-shrink:0; }
+    .rank-badge.gold   { background:rgba(245,158,11,0.15); color:#d97706; }
+    .rank-badge.silver { background:rgba(148,163,184,0.2); color:#64748b; }
+    .rank-badge.bronze { background:rgba(180,83,9,0.12); color:#92400e; }
+    .rank-badge.other  { background:#f3f4f6; color:var(--muted); }
+    .ranking-name  { font-size:15px; font-weight:700; flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ranking-val   { font-size:15px; font-weight:900; text-align:right; flex-shrink:0; }
+    .ranking-games { font-size:14px; font-weight:600; color:var(--muted); text-align:right; width:52px; flex-shrink:0; }
+    .ranking-header { display:flex; align-items:center; gap:10px; padding:0 0 8px; border-bottom:2px solid var(--border); margin-bottom:2px; }
+    .ranking-header-name  { flex:1; font-size:12px; font-weight:700; color:var(--muted); }
+    .ranking-header-games { width:52px; font-size:12px; font-weight:700; color:var(--muted); text-align:right; flex-shrink:0; }
+    .ranking-header-val   { font-size:12px; font-weight:700; color:var(--muted); text-align:right; flex-shrink:0; width:100px; }
+
     .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
     .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
     .nav-link.active { color:#818cf8; }
@@ -86,6 +103,16 @@
     <div class="loading"><div class="spinner"></div>読み込み中...</div>
   </div>
 
+  <div class="ranking-card">
+    <div class="ranking-title">🏆 全シーズン通算成績</div>
+    <div id="all-score-ranking"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+  </div>
+
+  <div class="ranking-card">
+    <div class="ranking-title">🎯 全シーズンチップ枚数ランキング</div>
+    <div id="all-chip-ranking"><div class="loading"><div class="spinner"></div>読み込み中...</div></div>
+  </div>
+
   <a href="index.html" class="btn btn-past" style="margin-bottom:16px;text-decoration:none">← ホームに戻る</a>
 
 </div>
@@ -106,13 +133,20 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 let seasons = [];
 
 async function init() {
-  await loadSeasons();
+  await Promise.all([loadSeasons(), loadAllRankings()]);
 }
 
 async function loadSeasons() {
-  const { data, error } = await sb.from('seasons').select('*').order('id', { ascending: true });
+  const { data, error } = await sb.from('seasons').select('*');
   if (error) { toast('読み込みに失敗しました', 'error'); return; }
-  seasons = data || [];
+  seasons = (data || []).sort((a, b) => {
+    const na = parseInt(a.name.match(/\d+/)?.[0]);
+    const nb = parseInt(b.name.match(/\d+/)?.[0]);
+    if (isNaN(na) && isNaN(nb)) return b.id - a.id; // 両方数字なし→新しい順
+    if (isNaN(na)) return -1; // aが数字なし→先頭
+    if (isNaN(nb)) return 1;  // bが数字なし→先頭
+    return nb - na;           // 両方数字あり→大きい順
+  });
   renderSeasons();
 }
 
@@ -130,6 +164,105 @@ function renderSeasons() {
         <a href="index.html?season=${s.id}" class="btn btn-primary btn-sm" style="text-decoration:none;flex:1">🏠 ホームへ</a>
         <button class="btn btn-danger btn-sm" onclick="deleteSeason(${s.id})" style="flex:1">🗑 削除</button>
       </div>
+    </div>`;
+  }).join('');
+}
+
+// サーバーの1000件制限を回避してgame_resultsを全件取得
+async function fetchAllGameResults() {
+  const all = [];
+  const PAGE = 999;
+  let offset = 0;
+  while (true) {
+    const { data } = await sb.from('game_results')
+      .select('player_id, total_pt')
+      .range(offset, offset + PAGE);
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length <= PAGE) break;
+    offset += PAGE + 1;
+  }
+  return all;
+}
+
+async function loadAllRankings() {
+  const [{ data: playerData }, results, { data: chips }] = await Promise.all([
+    sb.from('players').select('id, name'),
+    fetchAllGameResults(),
+    sb.from('chip_settlements').select('player_id, chip_count, chip_pt').limit(9999)
+  ]);
+
+  const playerMap = {};
+  (playerData || []).forEach(p => { playerMap[p.id] = p.name; });
+
+  const scoreMap = {}, gameCountMap = {};
+  (results || []).forEach(r => {
+    const pid = r.player_id;
+    scoreMap[pid]     = (scoreMap[pid]     || 0) + (r.total_pt || 0);
+    gameCountMap[pid] = (gameCountMap[pid] || 0) + 1;
+  });
+
+  const chipMap = {};
+  (chips || []).forEach(c => {
+    const pid = c.player_id;
+    chipMap[pid]  = (chipMap[pid]  || 0) + (c.chip_count || 0);
+    // chip_ptがnullの場合はchip_count×300で計算
+    const pt = c.chip_pt !== null ? (c.chip_pt || 0) : (c.chip_count || 0) * 300;
+    scoreMap[pid] = (scoreMap[pid] || 0) + pt;
+  });
+
+  renderScoreRanking(playerMap, scoreMap, gameCountMap);
+  renderChipRanking(playerMap, chipMap);
+}
+
+function renderScoreRanking(playerMap, scoreMap, gameCountMap) {
+  const el = document.getElementById('all-score-ranking');
+  const entries = Object.keys(scoreMap)
+    .map(pid => ({ name: playerMap[pid] || `ID:${pid}`, total: scoreMap[pid], games: gameCountMap[pid] || 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">📊</div>データがありません</div>'; return;
+  }
+  el.innerHTML = `<div class="ranking-header">
+    <div style="width:38px;flex-shrink:0"></div>
+    <div class="ranking-header-name">プレイヤー</div>
+    <div class="ranking-header-games">対局数</div>
+    <div class="ranking-header-val">総合収支 (pt)</div>
+  </div>` + entries.map((e, i) => {
+    const rank = i + 1;
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+    const cls   = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'other';
+    const sign  = e.total >= 0 ? '+' : '';
+    const color = e.total >= 0 ? 'var(--success)' : 'var(--danger)';
+    return `<div class="ranking-row">
+      <div class="rank-badge ${cls}">${medal}</div>
+      <div class="ranking-name">${esc(e.name)}</div>
+      <div class="ranking-games">${e.games}</div>
+      <div class="ranking-val" style="color:${color};width:100px">${sign}${e.total.toLocaleString()}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderChipRanking(playerMap, chipMap) {
+  const el = document.getElementById('all-chip-ranking');
+  const entries = Object.keys(chipMap)
+    .map(pid => ({ name: playerMap[pid] || `ID:${pid}`, total: chipMap[pid] }))
+    .sort((a, b) => b.total - a.total);
+
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">🎯</div>データがありません</div>'; return;
+  }
+  el.innerHTML = entries.map((e, i) => {
+    const rank = i + 1;
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+    const cls   = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'other';
+    const sign  = e.total >= 0 ? '+' : '';
+    const color = e.total >= 0 ? 'var(--success)' : 'var(--danger)';
+    return `<div class="ranking-row">
+      <div class="rank-badge ${cls}">${medal}</div>
+      <div class="ranking-name">${esc(e.name)}</div>
+      <div class="ranking-val" style="color:${color}">${sign}${e.total.toLocaleString()} 枚</div>
     </div>`;
   }).join('');
 }

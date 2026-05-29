@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>データ移行 | 公大中麻雀倶楽部</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-dark:#3730a3; --primary-light:#818cf8;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:40px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; }
+    .header-badge { font-size:11px; color:var(--danger); background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .warning-box { background:rgba(239,68,68,0.06); border:1.5px solid rgba(239,68,68,0.3); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+    .warning-box p { font-size:13px; color:#b91c1c; font-weight:600; line-height:1.6; }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:18px; margin-bottom:14px; }
+    .card-title { font-size:14px; font-weight:900; color:var(--text); margin-bottom:6px; }
+    .card-desc  { font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.6; }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; min-height:50px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .btn-danger  { background:linear-gradient(135deg,var(--danger),#dc2626); color:#fff; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-success { background:linear-gradient(135deg,var(--success),#059669); color:#fff; }
+    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
+
+    .status-box { margin-top:12px; background:#f9fafb; border:1px solid var(--border); border-radius:10px; padding:12px; font-size:12px; color:var(--muted); font-weight:600; display:none; }
+    .status-box.active { display:block; }
+    .status-box .ok    { color:var(--success); }
+    .status-box .warn  { color:var(--warning); }
+    .status-box .err   { color:var(--danger); }
+
+    .log-box { margin-top:12px; background:#0f172a; border-radius:10px; padding:12px; font-family:monospace; font-size:12px; line-height:1.7; color:#94a3b8; max-height:280px; overflow-y:auto; display:none; white-space:pre-wrap; word-break:break-all; }
+    .log-box.active { display:block; }
+    .log-ok   { color:#34d399; }
+    .log-warn { color:#fbbf24; }
+    .log-err  { color:#f87171; }
+    .log-info { color:#818cf8; }
+
+    .result-badges { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .badge { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+    .badge-ok   { background:rgba(16,185,129,0.12); color:var(--success); }
+    .badge-warn { background:rgba(245,158,11,0.12); color:var(--warning); }
+    .badge-err  { background:rgba(239,68,68,0.12); color:var(--danger); }
+
+    .check-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+    .check-item { background:#f9fafb; border:1px solid var(--border); border-radius:10px; padding:10px; text-align:center; }
+    .check-label { font-size:11px; color:var(--muted); font-weight:600; margin-bottom:4px; }
+    .check-val   { font-size:18px; font-weight:900; color:var(--text); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">🀄</div>
+  <div class="header-title">公大中麻雀倶楽部</div>
+  <div class="header-badge">⚠️ 管理用</div>
+</header>
+
+<div class="container">
+
+  <div class="warning-box">
+    <p>⚠️ このページは一度限りのデータ移行専用です。移行後は削除または非公開にしてください。<br>操作は取り消せません。必ず順番通りに実行してください。</p>
+  </div>
+
+  <!-- 移行済みチェック -->
+  <div class="card">
+    <div class="card-title">🔍 移行済みチェック</div>
+    <div class="card-desc">各シーズンの新DBの対局数・チップ件数を確認します。</div>
+    <button class="btn btn-outline" onclick="checkStatus()">現在の件数を確認</button>
+    <div class="check-grid" id="check-grid" style="display:none">
+      <div class="check-item"><div class="check-label">シーズン1 対局</div><div class="check-val" id="ck-s1-games">-</div></div>
+      <div class="check-item"><div class="check-label">シーズン2 対局</div><div class="check-val" id="ck-s2-games">-</div></div>
+      <div class="check-item"><div class="check-label">シーズン3 対局</div><div class="check-val" id="ck-s3-games">-</div></div>
+      <div class="check-item"><div class="check-label">シーズン1 チップ</div><div class="check-val" id="ck-s1-chips">-</div></div>
+      <div class="check-item"><div class="check-label">シーズン2 チップ</div><div class="check-val" id="ck-s2-chips">-</div></div>
+      <div class="check-item"><div class="check-label">シーズン3 チップ</div><div class="check-val" id="ck-s3-chips">-</div></div>
+    </div>
+  </div>
+
+  <!-- ボタン① -->
+  <div class="card">
+    <div class="card-title">🗑 ① シーズン3のテストデータを削除</div>
+    <div class="card-desc">新DBの games / game_results / chip_settlements から<br>season_id = シーズン3 に紐づく全レコードを削除します。<br>players テーブルは削除しません。</div>
+    <button class="btn btn-danger" id="btn-delete" onclick="deleteSeasonThree()">🗑 シーズン3のデータを削除</button>
+    <div class="status-box" id="status-delete"></div>
+  </div>
+
+  <!-- ボタン② -->
+  <div class="card">
+    <div class="card-title">📥 ② シーズン1を移行（旧season=3 → 新Season1）</div>
+    <div class="card-desc">旧DB キー: <code>mahjong_variable_score_history_int_s3</code><br>gameType = normal のみ対象。<br>新DBの players から名前でIDを検索して登録します。</div>
+    <button class="btn btn-primary" id="btn-s1" onclick="migrateSeason1()">📥 シーズン1を移行</button>
+    <div class="status-box" id="status-s1"></div>
+    <div class="log-box" id="log-s1"></div>
+    <div class="result-badges" id="result-s1" style="display:none"></div>
+  </div>
+
+  <!-- ボタン③ -->
+  <div class="card">
+    <div class="card-title">📥 ③ シーズン2を移行（旧season=1 → 新Season2）</div>
+    <div class="card-desc">旧DB キー: <code>mahjong_variable_score_history_int</code><br>gameType = normal → games/game_results<br>gameType = chips → chip_settlements（chip_pt = chipCount × 300）</div>
+    <button class="btn btn-success" id="btn-s2" onclick="migrateSeason2()">📥 シーズン2を移行</button>
+    <div class="status-box" id="status-s2"></div>
+    <div class="log-box" id="log-s2"></div>
+    <div class="result-badges" id="result-s2" style="display:none"></div>
+  </div>
+
+  <!-- ボタン④ -->
+  <div class="card">
+    <div class="card-title">📥 ④ シーズン3を移行（旧season=2 → 新Season3）</div>
+    <div class="card-desc">
+      旧DB キー: <code>mahjong_variable_score_history_int_s2</code><br>
+      gameType = normal → games / game_results<br>
+      gameType = chips → chip_settlements（chip_pt = chipCount × 300）<br>
+      メモ (<code>mahjong_memos_s2</code>) → memos テーブル<br>
+      ⚠️ 移行前に既存件数を確認し、重複時は確認ダイアログを表示します。
+    </div>
+    <button class="btn" id="btn-s3" onclick="migrateSeason3()" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff">📥 シーズン3を移行</button>
+    <div class="status-box" id="status-s3"></div>
+    <div class="log-box"    id="log-s3"></div>
+    <div class="result-badges" id="result-s3" style="display:none"></div>
+  </div>
+
+  <a href="index.html" class="btn btn-outline" style="text-decoration:none;margin-top:8px">← ホームに戻る</a>
+
+</div>
+
+<script>
+const OLD_URL = 'https://mikcjkqvdjkqkcgsufkh.supabase.co';
+const OLD_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pa2Nqa3F2ZGprcWtjZ3N1ZmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4NTU5ODIsImV4cCI6MjA3OTQzMTk4Mn0.O4gR7N9279zAsgunCDZre4FJAM2gHT4uwUlFkjEhm-k';
+const NEW_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
+const NEW_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
+
+const { createClient } = window.supabase;
+const oldSb = createClient(OLD_URL, OLD_KEY);
+const newSb = createClient(NEW_URL, NEW_KEY);
+
+// ── Helpers ──────────────────────────────────────────────────
+
+async function getSeasonId(namePrefix) {
+  const { data } = await newSb.from('seasons').select('id, name');
+  const s = (data || []).find(x => x.name.startsWith(namePrefix));
+  return s ? s.id : null;
+}
+
+async function getPlayerMap() {
+  const { data } = await newSb.from('players').select('id, name');
+  const map = {};
+  (data || []).forEach(p => { map[p.name] = p.id; });
+  return map;
+}
+
+async function fetchOldData(key) {
+  const { data, error } = await oldSb.from('app_data').select('*').eq('key', key).single();
+  if (error) throw new Error(`旧DB取得エラー (${key}): ${error.message}`);
+  const raw = data.value ?? data.data ?? data.json ?? data.content ?? data.body;
+  if (raw === null || raw === undefined) throw new Error(`旧DB: ${key} の value が null です`);
+  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+}
+
+function setStatus(id, msg, cls = '') {
+  const el = document.getElementById(id);
+  el.className = `status-box active ${cls}`;
+  el.textContent = msg;
+}
+
+function appendLog(logId, msg, cls = '') {
+  const el = document.getElementById(logId);
+  el.className = 'log-box active';
+  el.innerHTML += `<span class="${cls}">${escHtml(msg)}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog(logId) {
+  const el = document.getElementById(logId);
+  el.innerHTML = '';
+  el.className = 'log-box active';
+}
+
+function showResult(id, ok, skip, err) {
+  const el = document.getElementById(id);
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <span class="badge badge-ok">✅ 成功 ${ok}件</span>
+    <span class="badge badge-warn">⚠️ スキップ ${skip}件</span>
+    <span class="badge badge-err">❌ エラー ${err}件</span>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setButtonState(id, disabled) {
+  document.getElementById(id).disabled = disabled;
+}
+
+// ── ① シーズン3削除 ─────────────────────────────────────────
+
+async function deleteSeasonThree() {
+  if (!confirm('シーズン3に紐づく games / game_results / chip_settlements を全て削除します。\nこの操作は取り消せません。続行しますか？')) return;
+
+  setButtonState('btn-delete', true);
+  setStatus('status-delete', '🔍 シーズン3のIDを取得中...', '');
+
+  try {
+    const s3Id = await getSeasonId('シーズン3');
+    if (!s3Id) { setStatus('status-delete', '❌ シーズン3がDBに見つかりません', 'err'); return; }
+
+    setStatus('status-delete', `🔍 games を検索中... (season_id=${s3Id})`);
+    const { data: gamesToDel } = await newSb.from('games').select('id').eq('season_id', s3Id);
+    const gameIds = (gamesToDel || []).map(g => g.id);
+
+    if (gameIds.length === 0) {
+      setStatus('status-delete', 'ℹ️ 削除対象の対局データはありませんでした');
+    } else {
+      setStatus('status-delete', `🗑 game_results ${gameIds.length}件分を削除中...`);
+      const { error: grErr } = await newSb.from('game_results').delete().in('game_id', gameIds);
+      if (grErr) throw new Error('game_results削除エラー: ' + grErr.message);
+
+      setStatus('status-delete', `🗑 games ${gameIds.length}件を削除中...`);
+      const { error: gErr } = await newSb.from('games').delete().eq('season_id', s3Id);
+      if (gErr) throw new Error('games削除エラー: ' + gErr.message);
+    }
+
+    setStatus('status-delete', `🗑 chip_settlements を削除中...`);
+    const { error: cErr } = await newSb.from('chip_settlements').delete().eq('season_id', s3Id);
+    if (cErr) throw new Error('chip_settlements削除エラー: ' + cErr.message);
+
+    setStatus('status-delete', `✅ 削除完了：対局 ${gameIds.length}件 + チップ精算を削除しました`, 'ok');
+  } catch (e) {
+    setStatus('status-delete', `❌ ${e.message}`, 'err');
+  } finally {
+    setButtonState('btn-delete', false);
+  }
+}
+
+// ── ② シーズン1移行 (旧s3 → 新S1, normal only) ──────────────
+
+async function migrateSeason1() {
+  if (!confirm('旧season=3 のデータを新DBのシーズン1へ移行します。\n重複登録に注意してください。続行しますか？')) return;
+
+  setButtonState('btn-s1', true);
+  document.getElementById('result-s1').style.display = 'none';
+  clearLog('log-s1');
+  setStatus('status-s1', '📡 データ取得中...');
+
+  let ok = 0, skip = 0, err = 0;
+
+  try {
+    const [s1Id, playerMap, rawData] = await Promise.all([
+      getSeasonId('シーズン1'),
+      getPlayerMap(),
+      fetchOldData('mahjong_variable_score_history_int_s3')
+    ]);
+
+    if (!s1Id) throw new Error('新DBにシーズン1が見つかりません');
+
+    const records = Array.isArray(rawData) ? rawData : Object.values(rawData);
+    const normals = records.filter(r => r.gameType === 'normal');
+
+    appendLog('log-s1', `✅ 旧DB取得完了: ${records.length}件中 normal ${normals.length}件を対象`, 'log-ok');
+
+    for (let i = 0; i < normals.length; i++) {
+      const rec = normals[i];
+      setStatus('status-s1', `${i + 1}/${normals.length}件 移行中...`);
+
+      const date = (rec.date || '').substring(0, 10);
+      const groupName = rec.group || null;
+      const playerCount = rec.playerCount || Object.keys(rec.payouts || {}).length;
+
+      const payoutEntries = Object.entries(rec.payouts || {});
+      const missing = payoutEntries.filter(([name]) => !playerMap[name]).map(([name]) => name);
+      if (missing.length > 0) {
+        appendLog('log-s1', `⚠️ スキップ [${date} ${groupName}]: プレイヤー未登録 → ${missing.join(', ')}`, 'log-warn');
+        skip++;
+        continue;
+      }
+
+      try {
+        const { data: gameData, error: gErr } = await newSb.from('games')
+          .insert({ date, group_name: groupName, player_count: playerCount, season_id: s1Id })
+          .select().single();
+        if (gErr) throw new Error(gErr.message);
+
+        const results = payoutEntries.map(([name, p]) => ({
+          game_id:   gameData.id,
+          player_id: playerMap[name],
+          rank:      p.rank || 0,
+          score_pt:  p.scorePt || 0,
+          bonus_pt:  p.bonusPt || 0,
+          total_pt:  p.total   || 0
+        }));
+
+        const { error: rErr } = await newSb.from('game_results').insert(results);
+        if (rErr) throw new Error(rErr.message);
+
+        appendLog('log-s1', `✅ ${date} ${groupName || ''} (${playerCount}人打ち)`, 'log-ok');
+        ok++;
+      } catch (e) {
+        appendLog('log-s1', `❌ [${date} ${groupName}]: ${e.message}`, 'log-err');
+        err++;
+      }
+    }
+
+    setStatus('status-s1', `✅ 完了: 成功 ${ok}件 / スキップ ${skip}件 / エラー ${err}件`, 'ok');
+    showResult('result-s1', ok, skip, err);
+  } catch (e) {
+    appendLog('log-s1', `❌ 致命的エラー: ${e.message}`, 'log-err');
+    setStatus('status-s1', `❌ ${e.message}`, 'err');
+  } finally {
+    setButtonState('btn-s1', false);
+  }
+}
+
+// ── ③ シーズン2移行 (旧s1 → 新S2, normal + chips) ─────────────
+
+async function migrateSeason2() {
+  if (!confirm('旧season=1 のデータを新DBのシーズン2へ移行します。\n重複登録に注意してください。続行しますか？')) return;
+
+  setButtonState('btn-s2', true);
+  document.getElementById('result-s2').style.display = 'none';
+  clearLog('log-s2');
+  setStatus('status-s2', '📡 データ取得中...');
+
+  let ok = 0, skip = 0, err = 0;
+
+  try {
+    const [s2Id, playerMap, rawData] = await Promise.all([
+      getSeasonId('シーズン2'),
+      getPlayerMap(),
+      fetchOldData('mahjong_variable_score_history_int')
+    ]);
+
+    if (!s2Id) throw new Error('新DBにシーズン2が見つかりません');
+
+    const records = Array.isArray(rawData) ? rawData : Object.values(rawData);
+    const normals = records.filter(r => r.gameType === 'normal');
+    const chips   = records.filter(r => r.gameType === 'chips');
+
+    appendLog('log-s2', `✅ 旧DB取得完了: normal ${normals.length}件 / chips ${chips.length}件`, 'log-ok');
+
+    // normal 対局
+    for (let i = 0; i < normals.length; i++) {
+      const rec = normals[i];
+      setStatus('status-s2', `対局 ${i + 1}/${normals.length}件 移行中...`);
+
+      const date = (rec.date || '').substring(0, 10);
+      const groupName = rec.group || null;
+      const playerCount = rec.playerCount || Object.keys(rec.payouts || {}).length;
+
+      const payoutEntries = Object.entries(rec.payouts || {});
+      const missing = payoutEntries.filter(([name]) => !playerMap[name]).map(([name]) => name);
+      if (missing.length > 0) {
+        appendLog('log-s2', `⚠️ スキップ [${date} ${groupName}]: 未登録 → ${missing.join(', ')}`, 'log-warn');
+        skip++;
+        continue;
+      }
+
+      try {
+        const { data: gameData, error: gErr } = await newSb.from('games')
+          .insert({ date, group_name: groupName, player_count: playerCount, season_id: s2Id })
+          .select().single();
+        if (gErr) throw new Error(gErr.message);
+
+        const results = payoutEntries.map(([name, p]) => ({
+          game_id:   gameData.id,
+          player_id: playerMap[name],
+          rank:      p.rank || 0,
+          score_pt:  p.scorePt || 0,
+          bonus_pt:  p.bonusPt || 0,
+          total_pt:  p.total   || 0
+        }));
+
+        const { error: rErr } = await newSb.from('game_results').insert(results);
+        if (rErr) throw new Error(rErr.message);
+
+        appendLog('log-s2', `✅ [対局] ${date} ${groupName || ''} (${playerCount}人打ち)`, 'log-ok');
+        ok++;
+      } catch (e) {
+        appendLog('log-s2', `❌ [対局] ${date} ${groupName}: ${e.message}`, 'log-err');
+        err++;
+      }
+    }
+
+    // chips 精算
+    for (let i = 0; i < chips.length; i++) {
+      const rec = chips[i];
+      setStatus('status-s2', `チップ ${i + 1}/${chips.length}件 移行中...`);
+
+      const date = (rec.date || '').substring(0, 10);
+      const groupName = rec.group || null;
+
+      const payoutEntries = Object.entries(rec.payouts || {});
+      const missing = payoutEntries.filter(([name]) => !playerMap[name]).map(([name]) => name);
+      if (missing.length > 0) {
+        appendLog('log-s2', `⚠️ スキップ [チップ ${date} ${groupName}]: 未登録 → ${missing.join(', ')}`, 'log-warn');
+        skip++;
+        continue;
+      }
+
+      try {
+        const rows = payoutEntries.map(([name, p]) => ({
+          date,
+          group_name:  groupName,
+          player_id:   playerMap[name],
+          chip_count:  p.chipCount || 0,
+          chip_pt:     (p.chipCount || 0) * 300,
+          season_id:   s2Id
+        }));
+
+        const { error: cErr } = await newSb.from('chip_settlements').insert(rows);
+        if (cErr) throw new Error(cErr.message);
+
+        appendLog('log-s2', `✅ [チップ] ${date} ${groupName || ''} (${payoutEntries.length}人)`, 'log-ok');
+        ok++;
+      } catch (e) {
+        appendLog('log-s2', `❌ [チップ] ${date} ${groupName}: ${e.message}`, 'log-err');
+        err++;
+      }
+    }
+
+    setStatus('status-s2', `✅ 完了: 成功 ${ok}件 / スキップ ${skip}件 / エラー ${err}件`, 'ok');
+    showResult('result-s2', ok, skip, err);
+  } catch (e) {
+    appendLog('log-s2', `❌ 致命的エラー: ${e.message}`, 'log-err');
+    setStatus('status-s2', `❌ ${e.message}`, 'err');
+  } finally {
+    setButtonState('btn-s2', false);
+  }
+}
+
+// ── ④ シーズン3移行 (旧s2 → 新S3, normal + chips + memos) ────
+
+const S3_MEMO_START = '2026-04-07T00:00:00.000Z'; // シーズン3メモの基準日
+
+async function migrateSeason3() {
+  setButtonState('btn-s3', true);
+  document.getElementById('result-s3').style.display = 'none';
+  clearLog('log-s3');
+  setStatus('status-s3', '📡 既存件数を確認中...');
+
+  let ok = 0, skip = 0, err = 0;
+
+  try {
+    // 事前データ取得
+    const [s3Id, playerMap, rawData, rawMemos] = await Promise.all([
+      getSeasonId('シーズン3'),
+      getPlayerMap(),
+      fetchOldData('mahjong_variable_score_history_int_s2'),
+      fetchOldData('mahjong_memos_s2')
+    ]);
+
+    if (!s3Id) throw new Error('新DBにシーズン3が見つかりません');
+
+    // 既存件数チェック
+    const [{ count: existGames }, { count: existChips }, { count: existMemos }] = await Promise.all([
+      newSb.from('games').select('id', { count:'exact', head:true }).eq('season_id', s3Id),
+      newSb.from('chip_settlements').select('id', { count:'exact', head:true }).eq('season_id', s3Id),
+      newSb.from('memos').select('id', { count:'exact', head:true }).gte('created_at', S3_MEMO_START)
+    ]);
+
+    const hasExisting = (existGames || 0) > 0 || (existChips || 0) > 0 || (existMemos || 0) > 0;
+    if (hasExisting) {
+      const msg = `新DBのシーズン3にすでにデータが存在します。\n` +
+        `  対局: ${existGames ?? 0}件 / チップ: ${existChips ?? 0}件 / メモ: ${existMemos ?? 0}件\n\n` +
+        `重複登録される可能性があります。続けますか？`;
+      if (!confirm(msg)) {
+        setStatus('status-s3', 'キャンセルしました');
+        setButtonState('btn-s3', false);
+        return;
+      }
+    } else {
+      if (!confirm('旧season=2 のデータを新DBのシーズン3へ移行します。続行しますか？')) {
+        setStatus('status-s3', 'キャンセルしました');
+        setButtonState('btn-s3', false);
+        return;
+      }
+    }
+
+    const records = Array.isArray(rawData) ? rawData : Object.values(rawData);
+    // gameTypeの内訳をログ出力（旧DBはstandardを使用）
+    const typeStat = {};
+    records.forEach(r => { typeStat[r.gameType] = (typeStat[r.gameType] || 0) + 1; });
+    appendLog('log-s3', `旧DB取得完了: 全${records.length}件 (${JSON.stringify(typeStat)})`, 'log-info');
+
+    const normals = records.filter(r => r.gameType === 'standard' || r.gameType === 'normal');
+    const chips   = records.filter(r => r.gameType === 'chips');
+    const memos   = Array.isArray(rawMemos) ? rawMemos : Object.values(rawMemos);
+
+    appendLog('log-s3', `対象: 対局 ${normals.length}件 / chips ${chips.length}件 / メモ ${memos.length}件`, 'log-ok');
+
+    // ── normal 対局 ────────────────────────────────────────────
+    for (let i = 0; i < normals.length; i++) {
+      const rec = normals[i];
+      setStatus('status-s3', `対局 ${i + 1}/${normals.length}件 移行中...`);
+
+      const date      = (rec.date || '').substring(0, 10).replace(/\//g, '-');
+      const groupName = rec.group || null;
+      const pc        = rec.playerCount || Object.keys(rec.payouts || {}).length;
+      // player_count は 3〜5 の制約があるため範囲外はデフォルト4
+      const playerCount = (pc >= 3 && pc <= 5) ? pc : 4;
+
+      const payoutEntries = Object.entries(rec.payouts || {});
+      const missing = payoutEntries.filter(([n]) => !playerMap[n]).map(([n]) => n);
+      if (missing.length) {
+        appendLog('log-s3', `⚠️ スキップ [${date} ${groupName}]: 未登録 → ${missing.join(', ')}`, 'log-warn');
+        skip++; continue;
+      }
+
+      try {
+        const { data: gameData, error: gErr } = await newSb.from('games')
+          .insert({ date, group_name: groupName, player_count: playerCount, season_id: s3Id })
+          .select().single();
+        if (gErr) throw new Error(gErr.message);
+
+        const results = payoutEntries.map(([name, p]) => ({
+          game_id:   gameData.id,
+          player_id: playerMap[name],
+          rank:      p.rank    || 0,
+          score_pt:  p.scorePt || 0,
+          bonus_pt:  p.bonusPt || 0,
+          total_pt:  p.total   || 0
+        }));
+
+        const { error: rErr } = await newSb.from('game_results').insert(results);
+        if (rErr) throw new Error(rErr.message);
+
+        appendLog('log-s3', `✅ [対局] ${date} ${groupName || ''} (${playerCount}人打ち)`, 'log-ok');
+        ok++;
+      } catch (e) {
+        appendLog('log-s3', `❌ [対局] ${date} ${groupName}: ${e.message}`, 'log-err');
+        err++;
+      }
+    }
+
+    // ── chips 精算 ──────────────────────────────────────────────
+    for (let i = 0; i < chips.length; i++) {
+      const rec = chips[i];
+      setStatus('status-s3', `チップ ${i + 1}/${chips.length}件 移行中...`);
+
+      const date      = (rec.date || '').substring(0, 10).replace(/\//g, '-');
+      const groupName = rec.group || null;
+
+      const payoutEntries = Object.entries(rec.payouts || {});
+      const missing = payoutEntries.filter(([n]) => !playerMap[n]).map(([n]) => n);
+      if (missing.length) {
+        appendLog('log-s3', `⚠️ スキップ [チップ ${date} ${groupName}]: 未登録 → ${missing.join(', ')}`, 'log-warn');
+        skip++; continue;
+      }
+
+      try {
+        const rows = payoutEntries.map(([name, p]) => ({
+          date,
+          group_name: groupName,
+          player_id:  playerMap[name],
+          chip_count: p.chipCount || 0,
+          chip_pt:    (p.chipCount || 0) * 300,
+          season_id:  s3Id
+        }));
+
+        const { error: cErr } = await newSb.from('chip_settlements').insert(rows);
+        if (cErr) throw new Error(cErr.message);
+
+        appendLog('log-s3', `✅ [チップ] ${date} ${groupName || ''} (${payoutEntries.length}人)`, 'log-ok');
+        ok++;
+      } catch (e) {
+        appendLog('log-s3', `❌ [チップ] ${date} ${groupName}: ${e.message}`, 'log-err');
+        err++;
+      }
+    }
+
+    // ── メモ ────────────────────────────────────────────────────
+    setStatus('status-s3', `メモ ${memos.length}件 移行中...`);
+    let memoOk = 0, memoSkip = 0;
+    for (const m of memos) {
+      const createdAt = new Date(m.id).toISOString();
+      // 既存チェック（同じcreated_atが存在する場合はスキップ）
+      const { count: dup } = await newSb.from('memos')
+        .select('id', { count:'exact', head:true }).eq('created_at', createdAt);
+      if (dup > 0) {
+        appendLog('log-s3', `⚠️ [メモ] スキップ（重複）: ${(m.text || '').substring(0, 30)}`, 'log-warn');
+        memoSkip++; continue;
+      }
+      const { error: mErr } = await newSb.from('memos').insert({
+        content:    m.text,
+        author:     '（引継ぎ）',
+        created_at: createdAt
+      });
+      if (mErr) {
+        appendLog('log-s3', `❌ [メモ] ${mErr.message}`, 'log-err');
+        err++;
+      } else {
+        appendLog('log-s3', `✅ [メモ] ${(m.text || '').substring(0, 40)}`, 'log-ok');
+        memoOk++;
+      }
+    }
+    appendLog('log-s3', `メモ完了: 挿入 ${memoOk}件 / スキップ(重複) ${memoSkip}件`, 'log-info');
+
+    setStatus('status-s3', `✅ 完了: 成功 ${ok}件 / スキップ ${skip}件 / エラー ${err}件（メモ: 挿入${memoOk} スキップ${memoSkip}）`, 'ok');
+    showResult('result-s3', ok, skip, err);
+  } catch (e) {
+    appendLog('log-s3', `❌ 致命的エラー: ${e.message}`, 'log-err');
+    setStatus('status-s3', `❌ ${e.message}`, 'err');
+  } finally {
+    setButtonState('btn-s3', false);
+  }
+}
+
+// ── 移行済みチェック ──────────────────────────────────────────
+
+async function checkStatus() {
+  document.getElementById('check-grid').style.display = 'grid';
+  ['ck-s1-games','ck-s2-games','ck-s3-games','ck-s1-chips','ck-s2-chips','ck-s3-chips']
+    .forEach(id => { document.getElementById(id).textContent = '...'; });
+
+  try {
+    const { data: seasons } = await newSb.from('seasons').select('id, name');
+    const getId = prefix => seasons?.find(s => s.name.startsWith(prefix))?.id ?? null;
+    const s1 = getId('シーズン1'), s2 = getId('シーズン2'), s3 = getId('シーズン3');
+
+    const countGames = async sid => {
+      if (!sid) return '-';
+      const { count } = await newSb.from('games').select('id', { count:'exact', head:true }).eq('season_id', sid);
+      return count ?? 0;
+    };
+    const countChips = async sid => {
+      if (!sid) return '-';
+      const { count } = await newSb.from('chip_settlements').select('id', { count:'exact', head:true }).eq('season_id', sid);
+      return count ?? 0;
+    };
+
+    const [g1, g2, g3, c1, c2, c3] = await Promise.all([
+      countGames(s1), countGames(s2), countGames(s3),
+      countChips(s1), countChips(s2), countChips(s3)
+    ]);
+
+    document.getElementById('ck-s1-games').textContent = g1;
+    document.getElementById('ck-s2-games').textContent = g2;
+    document.getElementById('ck-s3-games').textContent = g3;
+    document.getElementById('ck-s1-chips').textContent = c1;
+    document.getElementById('ck-s2-chips').textContent = c2;
+    document.getElementById('ck-s3-chips').textContent = c3;
+  } catch (e) {
+    alert('チェック失敗: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>

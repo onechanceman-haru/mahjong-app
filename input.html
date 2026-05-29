@@ -89,7 +89,7 @@
     .chip-input-field { width:100px; flex-shrink:0; }
     .chip-sum-display { font-size:13px; font-weight:700; margin-top:10px; padding:6px 10px; border-radius:8px; background:#f9fafb; }
 
-    .sign-btn { width:38px; height:38px; border:none; border-radius:8px; font-size:17px; font-weight:900; cursor:pointer; flex-shrink:0; font-family:inherit; line-height:1; }
+    .sign-btn { width:38px; height:38px; border:none; border-radius:8px; font-size:17px; font-weight:900; cursor:pointer; flex-shrink:0; font-family:inherit; line-height:1; display:inline-flex; align-items:center; justify-content:center; -webkit-appearance:none; appearance:none; }
     .sign-btn.positive { background:rgba(16,185,129,0.12); color:var(--success); }
     .sign-btn.negative { background:rgba(239,68,68,0.12); color:var(--danger); }
 
@@ -137,7 +137,7 @@
 <header class="header">
   <div class="header-logo">🀄</div>
   <div class="header-title">公大中麻雀倶楽部</div>
-  <div class="header-badge">入力</div>
+  <div class="header-badge" id="header-badge">入力</div>
 </header>
 
 <div class="main-tab-bar">
@@ -291,7 +291,9 @@ const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-const GROUPS_KEY = 'mj_groups_v2';
+const currentSeasonId = new URLSearchParams(location.search).get('season');
+// シーズンごとに独立したグループリストを保持
+const GROUPS_KEY = currentSeasonId ? `mj_groups_v2_s${currentSeasonId}` : 'mj_groups_v2';
 
 const RANK_DEFAULTS = {
   3: [2000, 0, -2000],
@@ -315,6 +317,17 @@ let cfg = {
 };
 
 async function init() {
+  if (currentSeasonId) {
+    document.querySelectorAll('.bottom-nav .nav-link').forEach(a => {
+      const h = a.getAttribute('href');
+      if (h === 'index.html') a.href = `index.html?season=${currentSeasonId}`;
+      else if (h === 'input.html') a.href = `input.html?season=${currentSeasonId}`;
+      else if (h === 'history.html') a.href = `history.html?season=${currentSeasonId}`;
+    });
+    // シーズン名をヘッダーバッジに表示
+    const { data: season } = await sb.from('seasons').select('name').eq('id', currentSeasonId).single();
+    if (season?.name) document.getElementById('header-badge').textContent = season.name;
+  }
   setToday();
   loadGroups();
   populateGroupSelects();
@@ -375,7 +388,7 @@ function registerGroup() {
 function deleteSelectedGroup() {
   if (!selectedGid) { toast('グループを選択してください', 'error'); return; }
   const g = groups.find(x => x.id === selectedGid);
-  const label = g ? `${fmtDate(g.date)} · ${g.name}` : 'このグループ';
+  const label = g ? g.name : 'このグループ';
   if (!confirm(`「${label}」を削除しますか？`)) return;
   if (selectedChipGid === selectedGid) selectedChipGid = null;
   groups = groups.filter(x => x.id !== selectedGid);
@@ -391,7 +404,7 @@ function updateGroupBadge() {
   const g = groups.find(x => x.id === selectedGid);
   if (!g) { badge.style.display = 'none'; return; }
   badge.style.display = 'inline-block';
-  badge.textContent = `📅 ${fmtDate(g.date)} · ${g.name}`;
+  badge.textContent = `📅 ${g.name}`;
   cfg.groupDate = g.date;
   cfg.groupName = g.name;
 }
@@ -409,7 +422,7 @@ function populateGroupSelects() {
     return;
   }
   const opts = groups.map(g =>
-    `<option value="${g.id}">${fmtDate(g.date)} · ${esc(g.name)}</option>`
+    `<option value="${g.id}">${esc(g.name)}</option>`
   ).join('');
   if (gameEl) gameEl.innerHTML = opts;
   if (chipEl)  chipEl.innerHTML = opts;
@@ -636,7 +649,8 @@ async function submitGame() {
   const { data: gameData, error: gameErr } = await sb.from('games').insert({
     date: cfg.groupDate,
     group_name: cfg.groupName || null,
-    player_count: cfg.playerCount
+    player_count: cfg.playerCount,
+    season_id: currentSeasonId ? Number(currentSeasonId) : null
   }).select().single();
 
   if (gameErr) {
@@ -770,7 +784,7 @@ async function submitChips() {
   for (const pid of selectedChipPids) {
     const chip_count = getChipValue(pid);
     if (chip_count === null) { toast('全員の枚数を入力してください', 'error'); return; }
-    entries.push({ date: g.date, group_name: g.name, player_id: pid, chip_count, chip_pt: chip_count * unit });
+    entries.push({ date: g.date, group_name: g.name, player_id: pid, chip_count, chip_pt: chip_count * unit, season_id: currentSeasonId ? Number(currentSeasonId) : null });
   }
   const btn = document.getElementById('chip-submit-btn');
   btn.disabled = true; btn.textContent = '登録中...';
