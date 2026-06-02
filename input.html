@@ -289,7 +289,7 @@ const GROUPS_KEY = currentSeasonId ? `mj_groups_v2_s${currentSeasonId}` : 'mj_gr
 const RANK_DEFAULTS = {
   3: [2000, 0, -2000],
   4: [2000, 1000, -1000, -2000],
-  5: [3000, 1000, 0, -1000, -3000]
+  5: [3000, 1500, 0, -1500, -3000]
 };
 const BASE_POINTS = { 3: '35,000', 4: '25,000', 5: '25,000' };
 const SETTINGS_KEY = currentSeasonId ? `mj_cfg_v1_s${currentSeasonId}` : 'mj_cfg_v1';
@@ -335,8 +335,18 @@ async function init() {
   setToday();
   loadGroups();
   populateGroupSelects();
-  const { data } = await sb.from('players').select('*').order('name');
-  players = data || [];
+  const { data } = await sb.from('players').select('*');
+
+  // 対局数順にソート（多い順）
+  const gameCounts = {};
+  if (currentSeasonId) {
+    const { data: sGames } = await sb.from('games').select('id').eq('season_id', currentSeasonId).limit(500);
+    if (sGames?.length) {
+      const { data: gr } = await sb.from('game_results').select('player_id').in('game_id', sGames.map(g => g.id)).limit(10000);
+      (gr || []).forEach(r => { gameCounts[r.player_id] = (gameCounts[r.player_id] || 0) + 1; });
+    }
+  }
+  players = (data || []).sort((a, b) => (gameCounts[b.id] || 0) - (gameCounts[a.id] || 0));
   // 保存済み設定をUIに反映
   const pcBtn = document.getElementById(`pc-${cfg.playerCount}`);
   if (pcBtn) {
