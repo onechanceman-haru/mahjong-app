@@ -301,6 +301,7 @@ const RANK_DEFAULTS = {
   5: [3000, 1000, 0, -1000, -3000]
 };
 const BASE_POINTS = { 3: '35,000', 4: '25,000', 5: '25,000' };
+const SETTINGS_KEY = currentSeasonId ? `mj_cfg_v1_s${currentSeasonId}` : 'mj_cfg_v1';
 
 let players = [];
 let groups  = [];
@@ -308,12 +309,24 @@ let selectedGid = null;
 let selectedChipGid = null;
 let selectedChipPids = [];
 
+function loadCfg() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (saved) return saved;
+  } catch {}
+  return null;
+}
+function saveCfg() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ playerCount: cfg.playerCount, rankPoints: cfg.rankPoints, selectedPids: cfg.selectedPids })); } catch {}
+}
+
+const _savedCfg = loadCfg();
 let cfg = {
-  playerCount: 4,
+  playerCount: _savedCfg?.playerCount || 4,
   groupDate: null,
   groupName: null,
-  rankPoints: [...RANK_DEFAULTS[4]],
-  selectedPids: []
+  rankPoints: _savedCfg?.rankPoints || [...RANK_DEFAULTS[4]],
+  selectedPids: _savedCfg?.selectedPids || []
 };
 
 async function init() {
@@ -333,6 +346,12 @@ async function init() {
   populateGroupSelects();
   const { data } = await sb.from('players').select('*').order('name');
   players = data || [];
+  // 保存済み設定をUIに反映
+  const pcBtn = document.getElementById(`pc-${cfg.playerCount}`);
+  if (pcBtn) {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    pcBtn.classList.add('active');
+  }
   buildPlayerGrid();
   buildChipPlayerGrid();
   renderPlayerList();
@@ -449,6 +468,7 @@ function setPlayerCount(el, count) {
   cfg.playerCount = count;
   cfg.rankPoints = [...(RANK_DEFAULTS[count] || RANK_DEFAULTS[4])];
   cfg.selectedPids = [];
+  saveCfg();
   updateRankPointsUI();
   buildPlayerGrid();
   updateSelectedCount();
@@ -466,7 +486,7 @@ function updateRankPointsUI() {
         <span class="rank-pt-label">${labels[i]}</span>
         <input type="text" class="rank-pt-input"
                value="${cfg.rankPoints[i] !== undefined ? cfg.rankPoints[i] : defs[i]}"
-               oninput="cfg.rankPoints[${i}]=parseInt(this.value)||0; updateRankSum()">
+               oninput="cfg.rankPoints[${i}]=parseInt(this.value)||0; updateRankSum(); saveCfg()">
         <span class="rank-pt-suffix">pt</span>
       </div>`
     ).join('') + `</div>
@@ -517,6 +537,7 @@ function toggleGamePlayer(pid, el) {
     cfg.selectedPids.push(pid);
     el.classList.add('selected');
   }
+  saveCfg();
   updateSelectedCount();
   buildGameRows();
 }
@@ -544,7 +565,8 @@ function buildGameRows() {
       <button type="button" class="sign-btn positive" id="sign-${pid}" onclick="toggleDiffSign('${pid}')">＋</button>
       <div class="game-row-input">
         <input type="tel" class="form-input"
-               placeholder="0" id="diff-${pid}" oninput="updateDiffSum()">
+               placeholder="0" id="diff-${pid}" oninput="updateDiffSum()"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <span class="game-row-suffix">pt</span>
     </div>`;
@@ -734,7 +756,8 @@ function renderChipInputs() {
       <span class="chip-input-name">${esc(player ? player.name : '?')}</span>
       <button type="button" class="sign-btn positive" id="chip-sign-${pid}" onclick="toggleChipSign('${pid}')">＋</button>
       <input type="tel" class="form-input chip-input-field"
-             id="chipval-${pid}" placeholder="0" oninput="updateChipSum()">
+             id="chipval-${pid}" placeholder="0" oninput="updateChipSum()"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     </div>`;
   }).join('') + `<div class="chip-sum-display" id="chip-sum-display"></div>`;
   updateChipSum();

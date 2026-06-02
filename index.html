@@ -302,7 +302,9 @@ function initGroupSummary() {
     return;
   }
   sel.innerHTML = summaryGroups.map((g, i) => {
-    const label = fmtDateShort(g.date) + (g.groupName ? ' · ' + g.groupName : '');
+    // group_nameが日付形式(YYYY/MM/DD)なら冗長なので省略
+    const isDateFmt = /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(g.groupName);
+    const label = fmtDateShort(g.date) + (g.groupName && !isDateFmt ? ' · ' + g.groupName : '');
     return `<option value="${i}">${label}</option>`;
   }).join('');
   renderGroupSummary(summaryGroups[0]);
@@ -412,7 +414,7 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
       cum += chipRec ? (chipRec.chip_pt || 0) : 0;
       data.push(cum);
     }
-    return { label: playerTotals[pid].name, data, borderColor: color, backgroundColor: color + '22', tension: 0.3, fill: false, pointRadius: 5, borderWidth: 2 };
+    return { label: playerTotals[pid].name, data, borderColor: color, backgroundColor: color + '22', tension: 0.3, fill: false, pointRadius: 2, borderWidth: 2 };
   });
 
   legendEl.innerHTML = pids.map((pid, idx) => {

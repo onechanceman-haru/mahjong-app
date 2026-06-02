@@ -397,12 +397,20 @@ function switchGraphMode(mode) {
   renderGraph();
 }
 
+const DEFAULT_GRAPH_PLAYERS = new Set(['安部','井上','中田','谷口','豊田']);
+
 function buildPlayerFilter() {
-  selectedPlayerIds = new Set(S.players.map(p => String(p.id)));
   const el = document.getElementById('player-filter');
-  el.innerHTML = S.players.map(p =>
-    `<button class="pf-chip active" id="pf-${p.id}" onclick="togglePlayerFilter('${p.id}',this)">${esc(p.name)}</button>`
-  ).join('');
+  // デフォルト選択: 安部・井上・中田・谷口・豊田（存在するプレイヤーのみ）
+  selectedPlayerIds = new Set(
+    S.players.filter(p => DEFAULT_GRAPH_PLAYERS.has(p.name)).map(p => String(p.id))
+  );
+  // デフォルト選択が1人もいない場合は全員選択
+  if (!selectedPlayerIds.size) selectedPlayerIds = new Set(S.players.map(p => String(p.id)));
+  el.innerHTML = S.players.map(p => {
+    const active = selectedPlayerIds.has(String(p.id)) ? 'active' : '';
+    return `<button class="pf-chip ${active}" id="pf-${p.id}" onclick="togglePlayerFilter('${p.id}',this)">${esc(p.name)}</button>`;
+  }).join('');
 }
 
 function togglePlayerFilter(pid, el) {
@@ -474,7 +482,7 @@ function renderGraphMode1() {
     }
     const color = CHART_COLORS[idx % CHART_COLORS.length];
     const hidden = !selectedPlayerIds.has(String(p.id));
-    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:5, borderWidth:2, hidden });
+    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:2, borderWidth:2, hidden });
     legendItems.push({ name:p.name, color, pid: String(p.id) });
     playerDatasetMap[String(p.id)] = dsIdx++;
   });
@@ -537,7 +545,7 @@ function renderGraphMode2() {
     if (data.every(v => v === 0)) return;
     const color = CHART_COLORS[idx % CHART_COLORS.length];
     const hidden = !selectedPlayerIds.has(String(p.id));
-    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:3, borderWidth:2, hidden });
+    datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:2, borderWidth:2, hidden });
     legendItems.push({ name:p.name, color, pid: String(p.id) });
     playerDatasetMap[String(p.id)] = dsIdx++;
   });

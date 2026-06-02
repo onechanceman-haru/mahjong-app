@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>アップデートのお知らせ</title>
+<style>
+  @page { size:108mm 215mm; margin:0; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  @media print {
+    body { min-height:215mm; height:215mm; padding:0; }
+    .card { height:207mm; max-height:none; border-radius:0; }
+  }
+  html, body { height:100%; }
+  body {
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+    background:linear-gradient(160deg,#0f5132 0%,#137a4a 45%,#1aa05f 100%);
+    color:#fff;
+    min-height:100dvh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    overflow:hidden;
+  }
+  .card {
+    width:100%;
+    max-width:430px;
+    height:calc(100dvh - 24px);
+    max-height:920px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:26px;
+    padding:26px 22px;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 20px 50px rgba(0,0,0,0.35);
+    backdrop-filter:blur(2px);
+  }
+
+  /* ヘッダー */
+  .badge {
+    align-self:center;
+    background:#ffd23f;
+    color:#0f5132;
+    font-weight:900;
+    font-size:14px;
+    letter-spacing:2px;
+    padding:7px 20px;
+    border-radius:999px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25);
+  }
+  .tiles { text-align:center; font-size:30px; margin:14px 0 6px; letter-spacing:2px; }
+  .title {
+    text-align:center;
+    font-weight:900;
+    font-size:27px;
+    line-height:1.38;
+    text-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .title .accent { color:#ffd23f; }
+  .author {
+    text-align:center;
+    font-size:13px;
+    margin-top:14px;
+    color:rgba(255,255,255,0.92);
+    line-height:1.7;
+  }
+  .author .name { font-weight:900; font-size:15px; color:#ffd23f; }
+
+  .divider {
+    height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);
+    margin:18px 0 14px;
+  }
+
+  .sec-label {
+    text-align:center;
+    font-weight:900;
+    font-size:16px;
+    margin-bottom:14px;
+    letter-spacing:1px;
+  }
+
+  /* 新機能リスト */
+  .features { display:flex; flex-direction:column; gap:11px; flex:1; }
+  .feat {
+    background:rgba(255,255,255,0.96);
+    color:#143d2a;
+    border-radius:16px;
+    padding:13px 14px;
+    display:flex;
+    align-items:center;
+    gap:13px;
+    box-shadow:0 6px 16px rgba(0,0,0,0.18);
+  }
+  .feat .ico {
+    flex:none;
+    width:46px; height:46px;
+    border-radius:13px;
+    background:linear-gradient(145deg,#1aa05f,#0f5132);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px;
+    box-shadow:0 4px 10px rgba(15,81,50,0.4);
+  }
+  .feat .txt h3 { font-size:15px; font-weight:900; margin-bottom:2px; }
+  .feat .txt p { font-size:12px; line-height:1.45; color:#3a5a48; }
+
+  .foot {
+    text-align:center;
+    margin-top:16px;
+    font-size:12px;
+    color:rgba(255,255,255,0.85);
+    line-height:1.6;
+  }
+  .foot b { color:#ffd23f; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">UPDATE NEWS</div>
+    <div class="tiles">🀄 🀇 🀙 🀐 🀄</div>
+    <div class="title">院の研究を犠牲にした<br><span class="accent">麻雀アプリ</span>開発</div>
+    <div class="author">
+      公大中麻雀倶楽部　代表<br>
+      <span class="name">ワンチャンマン</span>
+    </div>
+
+    <div class="divider"></div>
+    <div class="sec-label">✨ 新機能 ✨</div>
+
+    <div class="features">
+      <div class="feat">
+        <div class="ico">🧮</div>
+        <div class="txt">
+          <h3>合計を自動チェック</h3>
+          <p>残り点数をリアルタイム表示。入力ミスがすぐ分かる</p>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="ico">🎯</div>
+        <div class="txt">
+          <h3>チップを人数制限なしに合算</h3>
+          <p>何人でもチップ精算OK。枚数×単価でpt換算し総合収支へ自動反映</p>
+        </div>
+      </div>
+      <div class="feat">
+        <div class="ico">📈</div>
+        <div class="txt">
+          <h3>成績グラフ＆ランキング</h3>
+          <p>累積収支の折れ線グラフを搭載。日付・期間・プレイヤーで絞り込み可。総合／3人／4人別ランキングやチップ枚数ランキングも一目で確認</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      旧アプリのデータは<b>全シーズン引き継ぎ済み</b><br>
+      スマホでURLを開くだけ・インストール不要
+    </div>
+  </div>
+</body>
+</html>
