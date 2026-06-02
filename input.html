@@ -219,15 +219,6 @@
       <div style="margin-top:14px">
         <button class="btn btn-success" id="submit-game-btn" onclick="submitGame()">✅ 対局登録</button>
       </div>
-      <div id="after-submit" style="display:none">
-        <div class="success-banner">
-          <div class="success-banner-title">✅ 対局を登録しました！</div>
-          <div class="btn-row">
-            <button class="btn btn-outline btn-sm" onclick="continueInput()">続けて入力</button>
-            <a id="daily-link" href="#" class="btn btn-primary btn-sm" style="text-decoration:none">📅 成績確認</a>
-          </div>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -356,6 +347,11 @@ async function init() {
   buildChipPlayerGrid();
   renderPlayerList();
   updateRankPointsUI();
+  // 保存済み参加者がいれば結果入力欄を復元
+  if (cfg.selectedPids.length) {
+    updateSelectedCount();
+    buildGameRows();
+  }
 }
 
 function setToday() {
@@ -564,9 +560,9 @@ function buildGameRows() {
       <div class="game-row-name">${esc(player ? player.name : pid)}</div>
       <button type="button" class="sign-btn positive" id="sign-${pid}" onclick="toggleDiffSign('${pid}')">＋</button>
       <div class="game-row-input">
-        <input type="tel" class="form-input"
+        <input type="text" inputmode="numeric" pattern="[0-9]*" class="form-input"
                placeholder="0" id="diff-${pid}" oninput="updateDiffSum()"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+               autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <span class="game-row-suffix">pt</span>
     </div>`;
@@ -694,15 +690,9 @@ async function submitGame() {
 
   if (resErr) { toast('成績の登録に失敗しました', 'error'); return; }
 
-  btn.style.display = 'none';
-  document.getElementById('after-submit').style.display = 'block';
-  document.getElementById('daily-link').href = `daily.html?date=${cfg.groupDate}`;
-
-  cfg.selectedPids.forEach(pid => {
-    const inp = document.getElementById(`diff-${pid}`);
-    if (inp) inp.value = '';
-  });
-  updateDiffSum();
+  // 登録完了 → そのシーズンのホームへ遷移
+  const dest = currentSeasonId ? `index.html?season=${currentSeasonId}` : 'index.html';
+  location.href = dest;
 }
 
 function continueInput() {
@@ -755,9 +745,9 @@ function renderChipInputs() {
     return `<div class="chip-input-row">
       <span class="chip-input-name">${esc(player ? player.name : '?')}</span>
       <button type="button" class="sign-btn positive" id="chip-sign-${pid}" onclick="toggleChipSign('${pid}')">＋</button>
-      <input type="tel" class="form-input chip-input-field"
+      <input type="text" inputmode="numeric" pattern="[0-9]*" class="form-input chip-input-field"
              id="chipval-${pid}" placeholder="0" oninput="updateChipSum()"
-             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+             autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false">
     </div>`;
   }).join('') + `<div class="chip-sum-display" id="chip-sum-display"></div>`;
   updateChipSum();
