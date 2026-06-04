@@ -381,6 +381,25 @@ function renderGroupSummary(group) {
   renderGroupChart(dayGames, playerTotals, date, groupName);
 }
 
+// 同一グループのチップを提出単位でグループ化（10秒以内のレコードを同一バッチとみなす）
+function groupChipsBySubmission(chips) {
+  if (!chips.length) return [];
+  const sorted = [...chips].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  const groups = [];
+  for (const chip of sorted) {
+    const key = chip.date + '|' + (chip.group_name || '');
+    let found = null;
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const g = groups[i];
+      if (g.key !== key) continue;
+      if (Math.abs(new Date(chip.created_at) - new Date(g.lastAt)) < 10000) { found = g; break; }
+    }
+    if (found) { found.records.push(chip); found.lastAt = chip.created_at; }
+    else groups.push({ key, date: chip.date, group_name: chip.group_name || '', created_at: chip.created_at, lastAt: chip.created_at, records: [chip] });
+  }
+  return groups;
+}
+
 function renderGroupChart(dayGames, playerTotals, date, groupName) {
   const legendEl = document.getElementById('group-chart-legend');
   const wrapEl   = document.getElementById('group-chart-wrap');
@@ -395,10 +414,10 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
   const gameIdSet  = new Set(gameIds);
   const dayResults = S.results.filter(r => gameIdSet.has(r.game_id));
   const dayChips   = S.chips.filter(c => c.date === date && (c.group_name || '') === (groupName || ''));
-  const hasChips   = dayChips.some(c => c.chip_pt);
+  const chipGroups = groupChipsBySubmission(dayChips);
 
   const labels = sortedGames.map((_, i) => `対局${i + 1}`);
-  if (hasChips) labels.push('Chip');
+  chipGroups.forEach((_, i) => labels.push(chipGroups.length > 1 ? `Chip${i + 1}` : 'Chip'));
 
   const pids = Object.keys(playerTotals);
   const datasets = pids.map((pid, idx) => {
@@ -409,11 +428,10 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
       if (r) cum += r.total_pt;
       return cum;
     });
-    if (hasChips) {
-      const chipRec = dayChips.find(c => String(c.player_id) === String(pid));
-      cum += chipRec ? (chipRec.chip_pt || 0) : 0;
+    chipGroups.forEach(cg => {
+      cum += cg.records.filter(c => String(c.player_id) === String(pid)).reduce((s, c) => s + (c.chip_pt || 0), 0);
       data.push(cum);
-    }
+    });
     return { label: playerTotals[pid].name, data, borderColor: color, backgroundColor: color + '22', tension: 0.3, fill: false, pointRadius: 2, borderWidth: 2 };
   });
 

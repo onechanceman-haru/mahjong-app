@@ -249,6 +249,25 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let S = { players:[], games:[], results:[], chips:[], statTab:3 };
 let histAllResults = [];
+
+// 同一グループのチップを提出単位でグループ化（10秒以内のレコードを同一バッチとみなす）
+function groupChipsBySubmission(chips) {
+  if (!chips.length) return [];
+  const sorted = [...chips].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  const groups = [];
+  for (const chip of sorted) {
+    const key = chip.date + '|' + (chip.group_name || '');
+    let found = null;
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const g = groups[i];
+      if (g.key !== key) continue;
+      if (Math.abs(new Date(chip.created_at) - new Date(g.lastAt)) < 10000) { found = g; break; }
+    }
+    if (found) { found.records.push(chip); found.lastAt = chip.created_at; }
+    else groups.push({ key, date: chip.date, group_name: chip.group_name || '', created_at: chip.created_at, lastAt: chip.created_at, records: [chip] });
+  }
+  return groups;
+}
 let histChipGroupsList = [];
 let playerDatasetMap = {};
 let graphMode = 1;
@@ -459,11 +478,11 @@ function renderGraphMode1() {
     clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この日の対局データがありません</div>'; return;
   }
 
-  const gameIds  = dayGames.map(g => g.id);
-  const dayChips = (S.chips || []).filter(c => c.date === date);
-  const hasChips = dayChips.some(c => c.chip_pt);
-  const labels   = dayGames.map((_, i) => `第${i+1}局`);
-  if (hasChips) labels.push('Chip');
+  const gameIds   = dayGames.map(g => g.id);
+  const dayChips  = (S.chips || []).filter(c => c.date === date);
+  const chipGroups = groupChipsBySubmission(dayChips);
+  const labels    = dayGames.map((_, i) => `第${i+1}局`);
+  chipGroups.forEach((_, i) => labels.push(chipGroups.length > 1 ? `Chip${i+1}` : 'Chip'));
 
   const datasets = [];
   const legendItems = [];
@@ -471,18 +490,17 @@ function renderGraphMode1() {
 
   S.players.forEach((p, idx) => {
     const played = gameIds.some(gid => S.results.find(r => r.game_id === gid && String(r.player_id) === String(p.id)));
-    if (!played) return;
+    if (!played && !dayChips.some(c => String(c.player_id) === String(p.id))) return;
     let cum = 0;
     const data = gameIds.map(gid => {
       const r = S.results.find(x => x.game_id === gid && String(x.player_id) === String(p.id));
       if (r) cum += r.total_pt;
       return cum;
     });
-    if (hasChips) {
-      const chipRec = dayChips.find(c => String(c.player_id) === String(p.id));
-      cum += chipRec ? (chipRec.chip_pt || 0) : 0;
+    chipGroups.forEach(cg => {
+      cum += cg.records.filter(c => String(c.player_id) === String(p.id)).reduce((s, c) => s + (c.chip_pt || 0), 0);
       data.push(cum);
-    }
+    });
     const color = CHART_COLORS[idx % CHART_COLORS.length];
     const hidden = !selectedPlayerIds.has(String(p.id));
     datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:2, borderWidth:2, hidden });
@@ -511,23 +529,28 @@ function renderGraphMode2() {
     clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この期間のデータがありません</div>'; return;
   }
 
-  // チップイベントをゲームイベントと統合（各日の最後に挿入）
-  const rangeChips = (S.chips || []).filter(c => c.date >= from && c.date <= to && c.chip_pt);
-  const chipByDate = {};
-  rangeChips.forEach(c => {
-    if (!chipByDate[c.date]) chipByDate[c.date] = [];
-    chipByDate[c.date].push(c);
-  });
+  // チップイベントをゲームイベントと統合（提出単位でグループ化）
+  const rangeChips = (S.chips || []).filter(c => c.date >= from && c.date <= to);
+  const chipSubmissions = groupChipsBySubmission(rangeChips);
   const gameEvents = rangeGames.map(g => ({ type:'game', date:g.date, sortKey:g.date+'|'+(g.created_at||''), data:g }));
-  const chipEvents = Object.entries(chipByDate).map(([date, records]) => ({
-    type:'chip', date, sortKey:date+'|zz', records
+  const chipEvents = chipSubmissions.map(cg => ({
+    type:'chip', date:cg.date, sortKey:cg.date+'|'+(cg.created_at||''), records:cg.records
   }));
   const allEvents = [...gameEvents, ...chipEvents].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
+  // 日ごとのChip連番カウント
+  const chipIdxByDate = {};
+  const chipTotalByDate = {};
+  chipSubmissions.forEach(cg => { chipTotalByDate[cg.date] = (chipTotalByDate[cg.date] || 0) + 1; });
+
   let gameCount = 0;
-  const labels = allEvents.map(evt =>
-    evt.type === 'game' ? `${fmtDateShort(evt.date)}-${++gameCount}` : `${fmtDateShort(evt.date)}-Chip`
-  );
+  const labels = allEvents.map(evt => {
+    if (evt.type === 'game') return `${fmtDateShort(evt.date)}-${++gameCount}`;
+    chipIdxByDate[evt.date] = (chipIdxByDate[evt.date] || 0) + 1;
+    return chipTotalByDate[evt.date] > 1
+      ? `${fmtDateShort(evt.date)}-Chip${chipIdxByDate[evt.date]}`
+      : `${fmtDateShort(evt.date)}-Chip`;
+  });
 
   const datasets = [];
   const legendItems = [];
@@ -540,8 +563,7 @@ function renderGraphMode2() {
         const r = S.results.find(x => x.game_id === evt.data.id && String(x.player_id) === String(p.id));
         if (r) cum += r.total_pt;
       } else {
-        const chipRec = evt.records.find(c => String(c.player_id) === String(p.id));
-        if (chipRec) cum += (chipRec.chip_pt || 0);
+        cum += evt.records.filter(c => String(c.player_id) === String(p.id)).reduce((s, c) => s + (c.chip_pt || 0), 0);
       }
       return cum;
     });
@@ -629,14 +651,8 @@ async function loadHistory() {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div>対局データがありません</div>'; return;
   }
 
-  // Group chip settlements by date + group_name
-  const chipGroupsMap = {};
-  allChips.forEach(c => {
-    const key = c.date + '|' + (c.group_name || '');
-    if (!chipGroupsMap[key]) chipGroupsMap[key] = { date: c.date, group_name: c.group_name || '', created_at: c.created_at, records: [] };
-    chipGroupsMap[key].records.push(c);
-  });
-  histChipGroupsList = Object.values(chipGroupsMap);
+  // チップを提出単位でグループ化（同一バッチ = 10秒以内の同グループレコード）
+  histChipGroupsList = groupChipsBySubmission(allChips);
 
   // Build unified timeline (descending)
   const gameEvents = safeGames.map(g => ({ type:'game', sortKey: g.date + '|' + (g.created_at || ''), data: g }));
