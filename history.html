@@ -157,7 +157,8 @@
   <div class="container">
     <div class="card" style="padding-bottom:8px">
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchStatTab(this,3)">3人打ち</button>
+        <button class="tab-btn active" onclick="switchStatTab(this,null)">総合</button>
+        <button class="tab-btn" onclick="switchStatTab(this,3)">3人打ち</button>
         <button class="tab-btn" onclick="switchStatTab(this,4)">4人打ち</button>
         <button class="tab-btn" onclick="switchStatTab(this,5)">5人打ち</button>
       </div>
@@ -247,7 +248,7 @@ const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let S = { players:[], games:[], results:[], chips:[], statTab:3 };
+let S = { players:[], games:[], results:[], chips:[], statTab:null };
 let histAllResults = [];
 
 // 同一グループのチップを提出単位でグループ化（10秒以内のレコードを同一バッチとみなす）
@@ -355,20 +356,34 @@ const CARRYOVER_DATE = '1900-01-01';
 function isCarryover(g) { return g && g.date === CARRYOVER_DATE; }
 
 function computeStats(pcFilter) {
-  // 引継ぎゲームは対局数タブのフィルタから除外
-  const gameSet = new Set(S.games.filter(g => !isCarryover(g) && g.player_count === pcFilter).map(g => g.id));
+  const isAll = (pcFilter === null);
+  // 総合タブ: 引継ぎ含む全ゲーム / 3/4/5タブ: 引継ぎ除く対象人数ゲームのみ
+  const gameSet = new Set(S.games.filter(g => {
+    if (isCarryover(g)) return isAll;
+    return isAll || g.player_count === pcFilter;
+  }).map(g => g.id));
   const map = {};
   S.players.forEach(p => { map[p.id] = { id:p.id, name:p.name, games:0, totalPt:0, rankSum:0, r1:0, r2:0, r3:0, r4:0, r5:0 }; });
   S.results.filter(r => gameSet.has(r.game_id)).forEach(r => {
     const s = map[r.player_id]; if (!s) return;
-    s.games++; s.totalPt += r.total_pt; s.rankSum += r.rank;
-    if (r.rank===1) s.r1++; else if (r.rank===2) s.r2++; else if (r.rank===3) s.r3++; else if (r.rank===4) s.r4++; else if (r.rank===5) s.r5++;
+    const g = S.games.find(x => x.id === r.game_id);
+    if (!isCarryover(g)) { s.games++; s.rankSum += r.rank; }
+    s.totalPt += r.total_pt;
+    if (!isCarryover(g)) {
+      if (r.rank===1) s.r1++; else if (r.rank===2) s.r2++; else if (r.rank===3) s.r3++; else if (r.rank===4) s.r4++; else if (r.rank===5) s.r5++;
+    }
   });
-  return Object.values(map).filter(s => s.games > 0).sort((a, b) => b.totalPt - a.totalPt);
+  // 総合タブのみチップptを加算（ホームの総合タブと同じ計算）
+  if (isAll) {
+    S.chips.forEach(c => { const s = map[c.player_id]; if (s) s.totalPt += (c.chip_pt || 0); });
+  }
+  return Object.values(map)
+    .filter(s => s.games > 0 || (isAll && s.totalPt !== 0))
+    .sort((a, b) => b.totalPt - a.totalPt);
 }
 
 function renderStats() {
-  const filter = S.statTab; // always a number: 3, 4, or 5
+  const filter = S.statTab; // null=総合, 3/4/5=人数別
   const stats  = computeStats(filter);
   const el     = document.getElementById('stats-content');
   if (!stats.length) {
@@ -379,10 +394,16 @@ function renderStats() {
     const pts  = s.totalPt;
     const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
     const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
-    const avg  = (s.rankSum / s.games).toFixed(2);
+    const avg  = s.games ? (s.rankSum / s.games).toFixed(2) : '-';
     const pct  = n => s.games ? (n / s.games * 100).toFixed(0) + '%' : '0%';
-    const r4h  = filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
-    const r5h  = filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
+    const r4h  = filter === null || filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
+    const r5h  = filter === null || filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
+    const rankDist = filter === null ? '' : `<div class="rank-dist">
+        <div class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</div>
+        <div class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</div>
+        <div class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</div>
+        ${r4h}${r5h}
+      </div>`;
     return `<div class="player-stat">
       <div class="player-stat-header">
         <div>
@@ -394,14 +415,9 @@ function renderStats() {
       <div class="stat-row">
         <div class="stat-item"><div class="stat-item-value">${s.games}</div><div class="stat-item-label">対局数</div></div>
         <div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>
-        <div class="stat-item"><div class="stat-item-value">${pct(s.r1)}</div><div class="stat-item-label">1位率</div></div>
+        <div class="stat-item"><div class="stat-item-value">${s.games ? pct(s.r1) : '-'}</div><div class="stat-item-label">1位率</div></div>
       </div>
-      <div class="rank-dist">
-        <div class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</div>
-        <div class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</div>
-        <div class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</div>
-        ${r4h}${r5h}
-      </div>
+      ${rankDist}
     </div>`;
   }).join('');
 }
