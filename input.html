@@ -283,8 +283,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const currentSeasonId = new URLSearchParams(location.search).get('season');
-// シーズンごとに独立したグループリストを保持
-const GROUPS_KEY = currentSeasonId ? `mj_groups_v2_s${currentSeasonId}` : 'mj_groups_v2';
 
 const RANK_DEFAULTS = {
   3: [2000, 0, -2000],
@@ -333,7 +331,7 @@ async function init() {
     if (season?.name) document.getElementById('header-badge').textContent = season.name;
   }
   setToday();
-  loadGroups();
+  await loadGroups();
   populateGroupSelects();
   const { data } = await sb.from('players').select('*');
 
@@ -377,48 +375,52 @@ function switchMainTab(el, tab) {
 }
 
 // ── Groups ──
-function loadGroups() {
-  try { groups = JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]'); } catch { groups = []; }
-}
-function saveGroups() {
-  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); } catch {}
+async function loadGroups() {
+  let q = sb.from('groups').select('*').order('created_at', { ascending: false });
+  if (currentSeasonId) q = q.eq('season_id', Number(currentSeasonId));
+  else q = q.is('season_id', null);
+  const { data, error } = await q;
+  if (error) { console.error('groups load error:', error); groups = []; return; }
+  groups = (data || []).map(g => ({ id: String(g.id), date: g.date, name: g.name }));
 }
 
-function registerGroup() {
+async function registerGroup() {
   const date = document.getElementById('g-date').value;
   let name = document.getElementById('g-name').value.trim();
   if (!date) { toast('日付を選択してください', 'error'); return; }
-
   if (!name) {
     const [y, m, d] = date.split('-');
     name = `${y}/${m}/${d}`;
   }
-
   const baseName = name;
   let finalName = baseName;
   let suffix = 2;
   while (groups.some(g => g.date === date && g.name === finalName)) {
     finalName = `${baseName}(${suffix++})`;
   }
-
-  const newId = Date.now().toString();
-  groups.unshift({ id: newId, date, name: finalName });
-  selectedGid = newId;
-  saveGroups();
+  const { data, error } = await sb.from('groups').insert({
+    date, name: finalName,
+    season_id: currentSeasonId ? Number(currentSeasonId) : null
+  }).select().single();
+  if (error) { toast('グループの登録に失敗しました', 'error'); return; }
+  const newGroup = { id: String(data.id), date: data.date, name: data.name };
+  groups.unshift(newGroup);
+  selectedGid = newGroup.id;
   populateGroupSelects();
   document.getElementById('g-name').value = '';
   toast('グループを登録しました ✓', 'success');
 }
 
-function deleteSelectedGroup() {
+async function deleteSelectedGroup() {
   if (!selectedGid) { toast('グループを選択してください', 'error'); return; }
   const g = groups.find(x => x.id === selectedGid);
   const label = g ? g.name : 'このグループ';
   if (!confirm(`「${label}」を削除しますか？`)) return;
+  const { error } = await sb.from('groups').delete().eq('id', selectedGid);
+  if (error) { toast('削除に失敗しました', 'error'); return; }
   if (selectedChipGid === selectedGid) selectedChipGid = null;
   groups = groups.filter(x => x.id !== selectedGid);
   selectedGid = groups.length ? groups[0].id : null;
-  saveGroups();
   populateGroupSelects();
   updateGroupBadge();
 }
