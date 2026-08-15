@@ -402,7 +402,7 @@ async function registerGroup() {
     date, name: finalName,
     season_id: currentSeasonId ? Number(currentSeasonId) : null
   }).select().single();
-  if (error) { toast('グループの登録に失敗しました', 'error'); return; }
+  if (error) { console.error('groups insert error:', error); toast('登録失敗: ' + (error.message || error.code || JSON.stringify(error)), 'error'); return; }
   const newGroup = { id: String(data.id), date: data.date, name: data.name };
   groups.unshift(newGroup);
   selectedGid = newGroup.id;

@@ -311,28 +311,46 @@ function setDefaultDates() {
   ['hist-to','g2-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
 }
 
-async function loadData() {
-  let gamesQ = sb.from('games').select('*').order('date').order('created_at').limit(2000);
-  let chipsQ = sb.from('chip_settlements').select('*').limit(2000);
-  if (currentSeasonId) {
-    gamesQ = gamesQ.eq('season_id', currentSeasonId);
-    chipsQ = chipsQ.eq('season_id', currentSeasonId);
-  } else {
-    gamesQ = gamesQ.gte('date', DATA_START);
-    chipsQ = chipsQ.gte('date', DATA_START);
+// Supabaseは1リクエスト最大1000件までしか返さないため、.range()で全件をページング取得する
+async function fetchAllRows(build) {
+  const PAGE = 1000;
+  let from = 0, all = [];
+  for (;;) {
+    const { data, error } = await build().range(from, from + PAGE - 1);
+    if (error) { console.error('fetchAllRows error:', error); throw error; }
+    if (!data || !data.length) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
   }
-  const [r1, r2, r3] = await Promise.all([
+  return all;
+}
+
+async function loadData() {
+  const buildGames = () => {
+    let q = sb.from('games').select('*').order('date').order('created_at').order('id');
+    if (currentSeasonId) q = q.eq('season_id', currentSeasonId);
+    else q = q.gte('date', DATA_START);
+    return q;
+  };
+  const buildChips = () => {
+    let q = sb.from('chip_settlements').select('*').order('id', { ascending: true });
+    if (currentSeasonId) q = q.eq('season_id', currentSeasonId);
+    else q = q.gte('date', DATA_START);
+    return q;
+  };
+  const [r1, games, chips] = await Promise.all([
     sb.from('players').select('*').order('name'),
-    gamesQ,
-    chipsQ
+    fetchAllRows(buildGames),
+    fetchAllRows(buildChips)
   ]);
   S.players = r1.data || [];
-  S.games   = r2.data || [];
-  S.chips   = r3.data || [];
+  S.games   = games;
+  S.chips   = chips;
   if (S.games.length > 0) {
     const ids = S.games.map(g => g.id);
-    const { data } = await sb.from('game_results').select('*').in('game_id', ids).limit(10000);
-    S.results = data || [];
+    S.results = await fetchAllRows(() =>
+      sb.from('game_results').select('*').in('game_id', ids).order('id', { ascending: true }));
   }
 }
 
