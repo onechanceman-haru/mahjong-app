@@ -684,7 +684,7 @@ function updateRawSum() {
   el.innerHTML = `${v.sum.toLocaleString()} <span class="score-label">/ ${v.required.toLocaleString()}</span>`;
   if (!v.complete) {
     el.className = 'score-val warn';
-    hint.textContent = `残り ${v.missing} 名を入力してください（目標 ${v.required.toLocaleString()}点）`;
+    hint.textContent = `残り ${v.missing} 名を入力してください`;
   } else if (v.ok) {
     el.className = 'score-val ok';
     hint.textContent = '✅ 合計が一致しました。登録できます！';

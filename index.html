@@ -415,7 +415,7 @@ function renderGroupSummary(group) {
 
   // 同じ日・同じメンバーで続けて打つための導線（groups行が特定できて対局がある場合のみ）
   const sameSetupHTML = (dayGames.length && findGroupRow(date, groupName))
-    ? `<button class="btn btn-past" style="margin-top:12px" onclick="goInputSameSetup()">＋ 同じ設定で結果入力</button>`
+    ? `<button class="btn btn-past btn-right" onclick="goInputSameSetup()">＋ 同じ設定で結果入力</button>`
     : '';
 
   el.innerHTML = `

@@ -114,6 +114,12 @@ body { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
 .form-label { font-size: 12px; margin-bottom: 6px; }
 .chart-wrap { height: 180px; }
 .legend-item span { font-size: 11px; }
+/* 「同じ設定で結果入力」は右端に寄せる */
+.btn-right {
+  display: flex;
+  margin-left: auto;
+  margin-top: 12px;
+}
 /* 「シーズン一覧」は主役ではないので控えめにする */
 .btn-past {
   width: auto;
