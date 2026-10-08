@@ -273,6 +273,8 @@ select.form-input { -webkit-appearance: auto; appearance: auto; cursor: pointer;
 .rank-badge.rank-2, .rank-badge.silver, .result-rank.r2 { background: var(--r2-bg); color: var(--r2-fg); font-weight: 700; }
 .rank-badge.rank-3, .rank-badge.bronze, .result-rank.r3 { background: var(--r3-bg); color: var(--r3-fg); font-weight: 700; }
 .rank-badge.rank-n, .rank-badge.other { background: transparent; color: var(--ink-3); font-weight: 600; }
+/* 絵文字のメダルを入れるバッジは地色を敷かず、絵文字をそのまま見せる */
+.rank-badge.medal { background: transparent; color: var(--ink-3); font-size: 16px; }
 
 /* ── 一覧行（ホームの通算ランキング・チップ） ───────────────── */
 .rank-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }

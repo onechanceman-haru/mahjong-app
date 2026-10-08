@@ -10,78 +10,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="stats.js"></script>
   <link rel="stylesheet" href="common.css">
-  <style>
-    :root {
-      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
-      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
-      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
-      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
-    }
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:24px; -webkit-font-smoothing:antialiased; }
-
-    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
-    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-    .header-title { font-size:15px; font-weight:700; flex:1; color:var(--text); }
-    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap; }
-
-    .container { max-width:600px; margin:0 auto; padding:16px; }
-
-    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:16px; margin-bottom:12px; }
-    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; }
-
-    .form-group { margin-bottom:12px; }
-    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
-    .form-input:focus { border-color:var(--primary); background:#fff; }
-    .form-input::placeholder { color:var(--dim); }
-
-    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
-    .btn:active { opacity:0.8; }
-    .btn:disabled { opacity:0.4; cursor:not-allowed; }
-    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
-    .btn-danger  { background:linear-gradient(135deg,var(--danger),#dc2626); color:#fff; }
-    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
-    .btn-sm { min-height:40px; padding:8px 14px; font-size:13px; width:auto; }
-    .btn-past { background:#fff; border:2px solid var(--primary); color:var(--primary); border-radius:14px; }
-
-    .season-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:18px; margin-bottom:10px; }
-    .season-name { font-size:17px; font-weight:900; color:var(--text); margin-bottom:4px; }
-    .season-date { font-size:12px; color:var(--muted); }
-    .season-actions { display:flex; gap:8px; margin-top:14px; }
-
-    .ranking-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:18px; margin-bottom:12px; }
-    .ranking-title { font-size:15px; font-weight:900; color:var(--text); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-    .ranking-row { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--border); }
-    .ranking-row:last-child { border-bottom:none; }
-    .rank-badge { width:28px; height:28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; flex-shrink:0; }
-    .rank-badge.gold   { background:rgba(245,158,11,0.15); color:#d97706; }
-    .rank-badge.silver { background:rgba(148,163,184,0.2); color:#64748b; }
-    .rank-badge.bronze { background:rgba(180,83,9,0.12); color:#92400e; }
-    .rank-badge.other  { background:#f3f4f6; color:var(--muted); }
-    .ranking-name  { font-size:15px; font-weight:700; flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .ranking-val   { font-size:15px; font-weight:900; text-align:right; flex-shrink:0; }
-    .ranking-games { font-size:14px; font-weight:600; color:var(--muted); text-align:right; width:52px; flex-shrink:0; }
-    .ranking-header { display:flex; align-items:center; gap:10px; padding:0 0 8px; border-bottom:2px solid var(--border); margin-bottom:2px; }
-    .ranking-header-name  { flex:1; font-size:12px; font-weight:700; color:var(--muted); }
-    .ranking-header-games { width:52px; font-size:12px; font-weight:700; color:var(--muted); text-align:right; flex-shrink:0; }
-    .ranking-header-val   { font-size:12px; font-weight:700; color:var(--muted); text-align:right; flex-shrink:0; width:100px; }
-
-    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
-    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
-    .nav-link.active { color:#818cf8; }
-    .nav-icon { font-size:22px; }
-
-    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
-    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    .empty-state { text-align:center; padding:32px; color:var(--muted); }
-    .empty-icon { font-size:44px; margin-bottom:10px; }
-
-    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
-    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-    .toast.success { border-color:#10b981; color:#10b981; }
-    .toast.error   { border-color:#ef4444; color:#ef4444; }
-  </style>
 </head>
 <body>
 
@@ -158,7 +86,7 @@ function renderSeasons() {
       <div class="season-name">${esc(s.name)}</div>
       <div class="season-date">作成日：${d}</div>
       <div class="season-actions">
-        <a href="index.html?season=${s.id}" class="btn btn-primary btn-sm" style="text-decoration:none;flex:1">🏠 ホームへ</a>
+        <a href="index.html?season=${s.id}" class="btn btn-outline btn-sm" style="text-decoration:none;flex:1">🏠 ホームへ</a>
         <button class="btn btn-danger btn-sm" onclick="deleteSeason(${s.id})" style="flex:1">🗑 削除</button>
       </div>
     </div>`;
@@ -205,12 +133,12 @@ function renderScoreRanking(stats) {
     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
     const cls   = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'other';
     const sign  = e.total >= 0 ? '+' : '';
-    const color = e.total >= 0 ? 'var(--success)' : 'var(--danger)';
+    const color = e.total >= 0 ? 'var(--pos)' : 'var(--neg)';
     return `<div class="ranking-row">
-      <div class="rank-badge ${cls}">${medal}</div>
+      <div class="rank-badge ${cls}${rank <= 3 ? ' medal' : ''}">${medal}</div>
       <div class="ranking-name">${esc(e.name)}</div>
       <div class="ranking-games">${e.games}</div>
-      <div class="ranking-val" style="color:${color};width:100px">${sign}${e.total.toLocaleString()}</div>
+      <div class="ranking-val" style="color:${color};width:96px">${sign}${e.total.toLocaleString()}</div>
     </div>`;
   }).join('');
 }
@@ -227,9 +155,9 @@ function renderChipRanking(chipStats) {
     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
     const cls   = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : 'other';
     const sign  = e.total >= 0 ? '+' : '';
-    const color = e.total >= 0 ? 'var(--success)' : 'var(--danger)';
+    const color = e.total >= 0 ? 'var(--pos)' : 'var(--neg)';
     return `<div class="ranking-row">
-      <div class="rank-badge ${cls}">${medal}</div>
+      <div class="rank-badge ${cls}${rank <= 3 ? ' medal' : ''}">${medal}</div>
       <div class="ranking-name">${esc(e.name)}</div>
       <div class="ranking-val" style="color:${color}">${sign}${e.total.toLocaleString()} 枚</div>
     </div>`;
