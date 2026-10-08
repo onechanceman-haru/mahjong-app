@@ -12,158 +12,6 @@
   <script src="scoring.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="common.css">
-  <style>
-    :root {
-      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
-      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
-      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
-      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
-    }
-    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:80px; -webkit-font-smoothing:antialiased; }
-
-    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
-    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-    .header-title { font-size:15px; font-weight:700; flex:1; }
-    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; }
-
-    .main-tab-bar { display:flex; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:56px; z-index:90; }
-    .main-tab { flex:1; padding:14px 4px; border:none; background:transparent; color:var(--muted); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; min-height:50px; border-bottom:2px solid transparent; }
-    .main-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
-    .tab-content { display:none; }
-    .tab-content.active { display:block; }
-
-    .container { max-width:600px; margin:0 auto; padding:16px; }
-
-    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.05); border-radius:16px; padding:16px; margin-bottom:12px; }
-    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-
-    .tab-bar { display:flex; background:#f3f4f6; border-radius:12px; padding:4px; gap:3px; margin-bottom:16px; }
-    .tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; color:var(--muted); border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; min-height:44px; font-family:inherit; }
-    .tab-btn.active { background:var(--primary); color:#fff; }
-
-    /* Player Stats */
-    .player-stat { background:#f9fafb; border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
-    .player-stat-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-    .player-stat-rank { font-size:12px; color:var(--muted); margin-bottom:2px; }
-    .player-stat-name { font-size:17px; font-weight:900; color:var(--text); }
-    .player-stat-pt   { font-size:20px; font-weight:900; }
-    .stat-row  { display:flex; gap:8px; margin-top:8px; }
-    .stat-item { flex:1; text-align:center; background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 4px; }
-    .stat-item-value { font-size:16px; font-weight:700; color:var(--text); }
-    .stat-item-label { font-size:11px; color:var(--muted); margin-top:2px; }
-    .rank-dist { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
-    .rank-dist-chip { padding:5px 10px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid var(--border); color:var(--muted); background:#fff; }
-    .rank-dist-chip.r1 { background:#fef3c7; color:#d97706; border-color:#fde68a; }
-    .rank-dist-chip.r2 { background:#f1f5f9; color:#64748b; border-color:#cbd5e1; }
-    .rank-dist-chip.r3 { background:#fdf4e7; color:#a16207; border-color:#fde68a; }
-    .rank-dist-chip.r4 { background:#fef2f2; color:#ef4444; border-color:#fecaca; }
-
-    .positive { color:var(--success); }
-    .negative { color:var(--danger); }
-    .neutral  { color:var(--muted); }
-
-    /* Graph Tab */
-    .mode-toggle { display:flex; gap:8px; margin-bottom:14px; }
-    .mode-btn { flex:1; padding:10px; border:1.5px solid var(--border); border-radius:10px; background:#f9fafb; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; min-height:44px; text-align:center; }
-    .mode-btn.active { background:rgba(79,70,229,0.08); border-color:var(--primary); color:var(--primary); }
-
-    .form-label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:7px; }
-    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:11px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
-    .form-input:focus { border-color:var(--primary); background:#fff; }
-    select.form-input { background:#f9fafb; }
-    .form-row { display:flex; gap:8px; margin-bottom:12px; }
-    .form-row > div { flex:1; }
-
-    .player-filter { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-    .pf-chip { padding:7px 14px; border:1.5px solid var(--border); border-radius:20px; background:#f9fafb; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
-    .pf-chip.active { background:rgba(79,70,229,0.1); border-color:var(--primary); color:var(--primary); }
-
-    .chart-wrap { position:relative; height:240px; margin-top:8px; }
-    .chart-legend { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; font-size:12px; }
-    .legend-item { display:flex; align-items:center; gap:5px; }
-    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-
-    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
-    .btn:active { opacity:0.8; }
-    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
-    .btn-danger  { background:linear-gradient(135deg,var(--danger),#dc2626); color:#fff; }
-    .btn-outline { background:#fff; border:1.5px solid var(--border); color:var(--text); }
-    .btn-sm { min-height:40px; padding:8px 14px; font-size:13px; }
-    .btn-xs { min-height:34px; padding:6px 12px; font-size:12px; width:auto; }
-
-    /* History Tab */
-    .filter-row { display:flex; gap:8px; margin-bottom:12px; align-items:flex-end; }
-    .filter-row > div { flex:1; }
-    /* 1段目: 日ごとのカード */
-    .day-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
-    .day-card-header { display:flex; align-items:center; gap:10px; padding:14px; cursor:pointer; }
-    .day-card-header:active { background:rgba(0,0,0,0.03); }
-    .day-meta { flex:1; min-width:0; }
-    .day-title { font-size:15px; font-weight:900; color:var(--text); }
-    .day-players { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5; }
-    .day-expand-icon { font-size:16px; color:var(--muted); flex-shrink:0; transition:transform 0.2s; }
-    .day-card.expanded .day-expand-icon { transform:rotate(180deg); }
-    .day-card-body { display:none; padding:0 10px 10px; }
-    .day-card.expanded .day-card-body { display:block; }
-    .game-num { font-weight:900; color:var(--text); }
-    .game-top { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    /* 対局の移動 */
-    .move-panel { margin-top:10px; padding:10px 12px; background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.25); border-radius:10px; }
-    .move-title { font-size:12px; font-weight:700; color:var(--primary-dark); margin-bottom:8px; }
-    .move-empty { font-size:12px; color:var(--muted); line-height:1.6; }
-    .game-card.just-moved { animation:justMoved 2s ease-out; }
-    @keyframes justMoved {
-      0%, 55% { background:#fef3c7; border-color:#f59e0b; }
-      100%    { background:#f9fafb; border-color:var(--border); }
-    }
-
-    .game-card { background:#f9fafb; border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; }
-    .game-card-header { display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
-    .game-card-header:active { background:rgba(0,0,0,0.03); }
-    .game-meta { flex:1; min-width:0; }
-    .game-date { font-size:12px; color:var(--muted); }
-    .game-title { font-size:14px; font-weight:700; color:var(--text); margin-top:2px; }
-    .game-expand-icon { font-size:16px; color:var(--muted); flex-shrink:0; transition:transform 0.2s; }
-    .game-card.expanded .game-expand-icon { transform:rotate(180deg); }
-    .game-card-body { display:none; padding:0 14px 14px; }
-    .game-card.expanded .game-card-body { display:block; }
-    .result-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
-    .result-row:last-child { border-bottom:none; }
-    .result-rank { width:28px; height:28px; border-radius:50%; background:#e5e7eb; color:var(--muted); font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .result-rank.r1 { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
-    .result-rank.r2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
-    .result-rank.r3 { background:linear-gradient(135deg,#cd7c2f,#92400e); color:#fff; }
-    .result-name { font-size:14px; font-weight:700; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .result-pts { text-align:right; flex-shrink:0; }
-    .result-total { font-size:14px; font-weight:900; }
-    .result-sub { font-size:11px; color:var(--muted); }
-    .edit-input { width:80px; padding:7px 10px; background:#fff; border:1.5px solid var(--border); border-radius:8px; font-size:14px; font-weight:700; outline:none; font-family:inherit; text-align:right; }
-    .edit-input:focus { border-color:var(--primary); }
-    .game-actions { display:flex; gap:8px; margin-top:12px; }
-
-    /* Chip settlement card */
-    .chip-card { background:rgba(245,158,11,0.08); border:1px solid var(--border); border-left:3px solid #f59e0b; border-radius:14px; margin-bottom:10px; overflow:hidden; }
-
-    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
-    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
-    .nav-link.active { color:#818cf8; }
-    .nav-icon { font-size:22px; }
-
-    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
-    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    .empty-state { text-align:center; padding:32px; color:var(--muted); }
-    .empty-icon  { font-size:44px; margin-bottom:10px; }
-    .divider { border:none; border-top:1px solid var(--border); margin:12px 0; }
-    .hint { font-size:12px; color:var(--dim); margin-top:6px; }
-
-    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
-    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-    .toast.success { border-color:#10b981; color:#10b981; }
-    .toast.error   { border-color:#ef4444; color:#ef4444; }
-  </style>
 </head>
 <body>
 
@@ -270,7 +118,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const DATA_START = '2026-04-07';
 const _params = new URLSearchParams(location.search);
 const currentSeasonId = _params.get('season');
-const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#e879f9','#0ea5e9','#84cc16','#f43f5e','#14b8a6','#a855f7','#f97316','#64748b'];
+// 色は common.css のトークンから読む（ダークモードにも追従する）
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+// グラフの系列色6色。プラス(青)・マイナス(赤)・ブランド(緑)の色は使わない
+const CHART_COLORS = ['--s1','--s2','--s3','--s4','--s5','--s6'].map(cssVar);
 
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -425,29 +276,28 @@ function renderStats() {
     const pct  = n => s.games ? (n / s.games * 100).toFixed(0) + '%' : '0%';
     // 総合タブは平均順位を表示しない（人数別タブのみ表示）。stat-itemはflex:1なので残りが等幅になる
     const avgHTML = filter === null ? ''
-      : `<div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>`;
-    const r4h  = filter === null || filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
-    const r5h  = filter === null || filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
+      : `<span class="stat-item"><span class="stat-item-label">平均</span><span class="stat-item-value">${avg}位</span></span>`;
+    const r4h  = filter === null || filter !== 3 ? `<span class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</span>` : '';
+    const r5h  = filter === null || filter === 5 ? `<span class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</span>` : '';
     const rankDist = filter === null ? '' : `<div class="rank-dist">
-        <div class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</div>
-        <div class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</div>
-        <div class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</div>
+        <span class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</span>
+        <span class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</span>
+        <span class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</span>
         ${r4h}${r5h}
       </div>`;
+    const bc = rank <= 3 ? `rank-${rank}` : 'rank-n';
     return `<div class="player-stat">
+      <div class="rank-badge ${bc}">${rank}</div>
       <div class="player-stat-header">
-        <div>
-          <div class="player-stat-rank">${rank}位</div>
-          <div class="player-stat-name">${esc(s.name)}</div>
+        <div class="player-stat-name">${esc(s.name)}</div>
+        <div class="stat-row">
+          <span class="stat-item"><span class="stat-item-value">${s.games}戦</span></span>
+          ${avgHTML}
+          <span class="stat-item"><span class="stat-item-label">1位率</span><span class="stat-item-value">${s.games ? pct(s.r1) : '-'}</span></span>
         </div>
-        <div class="player-stat-pt ${cls}">${str}</div>
+        ${rankDist}
       </div>
-      <div class="stat-row">
-        <div class="stat-item"><div class="stat-item-value">${s.games}</div><div class="stat-item-label">対局数</div></div>
-        ${avgHTML}
-        <div class="stat-item"><div class="stat-item-value">${s.games ? pct(s.r1) : '-'}</div><div class="stat-item-label">1位率</div></div>
-      </div>
-      ${rankDist}
+      <div class="player-stat-pt ${cls}">${str}</div>
     </div>`;
   }).join('');
 }
@@ -521,7 +371,7 @@ function renderGraphMode1() {
     (a.created_at || '').localeCompare(b.created_at || '')
   );
   if (!dayGames.length) {
-    clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この日の対局データがありません</div>'; return;
+    clearChart(); legendEl.innerHTML = '<div style="color:var(--ink-3);font-size:14px">この日の対局データがありません</div>'; return;
   }
 
   const gameIds   = dayGames.map(g => g.id);
@@ -555,7 +405,7 @@ function renderGraphMode1() {
   });
 
   legendEl.innerHTML = legendItems.map(l =>
-    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--muted)">${esc(l.name)}</span></div>`
+    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--ink-3)">${esc(l.name)}</span></div>`
   ).join('');
 
   drawChart(labels, datasets, false);
@@ -572,7 +422,7 @@ function renderGraphMode2() {
     .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.created_at||'').localeCompare(b.created_at||''));
 
   if (!rangeGames.length) {
-    clearChart(); legendEl.innerHTML = '<div style="color:var(--muted);font-size:13px">この期間のデータがありません</div>'; return;
+    clearChart(); legendEl.innerHTML = '<div style="color:var(--ink-3);font-size:14px">この期間のデータがありません</div>'; return;
   }
 
   // チップイベントをゲームイベントと統合（提出単位でグループ化）
@@ -622,7 +472,7 @@ function renderGraphMode2() {
   });
 
   legendEl.innerHTML = legendItems.map(l =>
-    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--muted)">${esc(l.name)}</span></div>`
+    `<div class="legend-item"><div class="legend-dot" style="background:${l.color}"></div><span style="color:var(--ink-3)">${esc(l.name)}</span></div>`
   ).join('');
 
   drawChart(labels, datasets, true);
@@ -640,16 +490,16 @@ function drawChart(labels, datasets, zeroline) {
       plugins:{
         legend:{ display:false },
         tooltip:{
-          backgroundColor:'#1f2937', titleColor:'#9ca3af', bodyColor:'#f9fafb',
+          backgroundColor:cssVar('--toast-bg'), titleColor:cssVar('--toast-ink'), bodyColor:cssVar('--toast-ink'),
           borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
           callbacks:{ label: ctx => { const v=ctx.parsed.y; return `${ctx.dataset.label}: ${v>=0?'+':''}${v.toLocaleString()} pt`; } }
         }
       },
       scales:{
-        x:{ ticks:{ color:'#9ca3af', font:{size:10}, maxRotation:45 }, grid:{ color:'#f3f4f6' } },
+        x:{ ticks:{ color:cssVar('--ink-3'), font:{size:10}, maxRotation:45 }, grid:{ color:cssVar('--grid') } },
         y:{
-          ticks:{ color:'#9ca3af', font:{size:11}, callback: v => (v>=0?'+':'')+v.toLocaleString() },
-          grid:{ color:'#f3f4f6' }
+          ticks:{ color:cssVar('--ink-3'), font:{size:11}, callback: v => (v>=0?'+':'')+v.toLocaleString() },
+          grid:{ color:cssVar('--grid') }
         }
       }
     }
@@ -826,7 +676,7 @@ function renderCarryoverCard(g, allResults) {
   return `<div class="game-card" id="gc-${g.id}">
     <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
       <div class="game-meta">
-        <div class="game-date" style="color:var(--warning)">📦 過去分引継ぎ</div>
+        <div class="game-date" style="color:var(--warn)">📦 過去分引継ぎ</div>
         <div class="game-title">前シーズンまでの通算持ち越し</div>
       </div>
       <span class="game-expand-icon">▼</span>
@@ -837,7 +687,7 @@ function renderCarryoverCard(g, allResults) {
         const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
         const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
         return `<div class="result-row">
-          <div class="result-rank" style="background:#f3f4f6;color:var(--muted)">—</div>
+          <div class="result-rank">—</div>
           <div class="result-name">${esc(p ? p.name : '?')}</div>
           <div class="result-pts">
             <div class="result-total ${cls}">${str} pt</div>
@@ -855,7 +705,7 @@ function renderChipCard(idx) {
   const timeStr = fmtTime(cg.created_at);
   return `<div class="chip-card" id="chip-card-${idx}">
     <div style="padding:13px 14px">
-      <div style="font-size:12px;color:var(--warning);font-weight:700;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--warn);font-weight:700;margin-bottom:8px">
         🎯 チップ精算${timeStr ? ' · ' + timeStr : ''}
       </div>
       <div id="chip-view-${idx}">
@@ -865,8 +715,8 @@ function renderChipCard(idx) {
           const countStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
           const ptStr = c.chip_pt != null ? `  (${c.chip_pt >= 0 ? '+' : ''}${c.chip_pt.toLocaleString()} pt)` : '';
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(245,158,11,0.15)">
-            <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(p ? p.name : '?')}</span>
-            <span class="${cls}" style="font-size:14px;font-weight:900">${countStr}<span style="font-size:12px;font-weight:600;color:var(--muted)">${ptStr}</span></span>
+            <span style="font-size:14px;font-weight:700;color:var(--ink)">${esc(p ? p.name : '?')}</span>
+            <span class="${cls}" style="font-size:16px;font-weight:700;font-variant-numeric:tabular-nums">${countStr}<span style="font-size:12px;font-weight:600;color:var(--ink-3)">${ptStr}</span></span>
           </div>`;
         }).join('')}
         <div class="game-actions" style="margin-top:10px">
@@ -1019,37 +869,37 @@ function startEditGame(gid) {
   const labels = ['1位', '2位', '3位', '4位', '5位'];
 
   const rankPtHTML = rec.ambiguous
-    ? `<div style="margin-bottom:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px">
-        <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:8px">⚠️ この対局は同点を含むため、保存されている順位点から元の設定を一意に復元できません。順位点を確認してください。</div>
+    ? `<div style="margin-bottom:12px;padding:12px;background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--warn);margin-bottom:8px">⚠️ この対局は同点を含むため、保存されている順位点から元の設定を一意に復元できません。順位点を確認してください。</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${rankPoints.map((v, i) => `<span style="font-size:12px;color:var(--muted)">${labels[i]}</span>
+          ${rankPoints.map((v, i) => `<span style="font-size:12px;color:var(--ink-3)">${labels[i]}</span>
             <input type="text" class="edit-input edit-rankpt-${gid}" value="${v}" style="width:66px"
                    oninput="updateEditSum('${gid}')">`).join('')}
         </div>
         <div id="edit-rankpt-sum-${gid}" style="font-size:12px;font-weight:700;margin-top:8px"></div>
       </div>`
-    : `<div style="margin-bottom:10px;padding:8px 10px;background:#f9fafb;border-radius:8px;font-size:12px;color:var(--muted)">
+    : `<div style="margin-bottom:10px;padding:8px 10px;background:var(--field);border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--ink-3)">
         復元した順位点：${rankPoints.map((v, i) => `${labels[i]} ${v >= 0 ? '+' : ''}${v.toLocaleString()}`).join(' / ')}
         ${rankPoints.map(v => `<input type="hidden" class="edit-rankpt-${gid}" value="${v}">`).join('')}
       </div>`;
 
   viewEl.innerHTML =
-  `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:#f9fafb;border-radius:8px">修正後の素点を入力（100点単位・マイナスは「-」を先頭に・順位と順位点は自動で再計算されます）</div>` +
+  `<div style="font-size:12px;color:var(--ink-3);margin-bottom:8px;padding:8px 12px;background:var(--field);border:1px solid var(--line);border-radius:8px">修正後の素点を入力（100点単位・マイナスは「-」を先頭に・順位と順位点は自動で再計算されます）</div>` +
   rankPtHTML +
   rowData.map((r, i) => {
-    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(r.name)}</div>
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:8px">${esc(r.name)}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--muted)">修正前：${r.raw.toLocaleString()}点</span>
-        <span style="color:var(--dim)">→</span>
+        <span style="font-size:12px;color:var(--ink-3)">修正前：${r.raw.toLocaleString()}点</span>
+        <span style="color:var(--ink-3)">→</span>
         <input type="text" inputmode="numeric" class="edit-input edit-raw-${gid}" id="edit-raw-${gid}-${i}"
                value="${r.raw / 100}" style="width:84px" oninput="updateEditSum('${gid}')">
-        <span style="font-size:13px;font-weight:900;color:var(--muted)">00</span>
+        <span style="font-size:16px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums">00</span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:5px" id="edit-live-${gid}-${i}">—</div>
+      <div style="font-size:12px;color:var(--ink-3);margin-top:4px;font-variant-numeric:tabular-nums" id="edit-live-${gid}-${i}">—</div>
     </div>`;
   }).join('') +
-  `<div id="edit-sum-${gid}" style="font-size:13px;font-weight:700;margin-top:10px;padding:8px 10px;background:#f9fafb;border-radius:8px"></div>
+  `<div id="edit-sum-${gid}" style="font-size:14px;font-weight:600;margin-top:12px;padding:8px 12px;background:var(--field);border:1px solid var(--line);border-radius:8px;font-variant-numeric:tabular-nums"></div>
   <div style="margin-top:10px;display:flex;gap:8px">
     <button class="btn btn-primary btn-sm" id="edit-save-${gid}" onclick="saveEditGame('${gid}')">保存</button>
     <button class="btn btn-outline btn-sm" onclick="loadHistory()">キャンセル</button>
@@ -1089,18 +939,18 @@ function updateEditSum(gid) {
   const sumEl = document.getElementById(`edit-sum-${gid}`);
   if (sumEl) {
     if (!v.complete) {
-      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--warning)">残り ${v.missing} 名</span>`;
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--warn)">残り ${v.missing} 名</span>`;
     } else if (v.ok) {
-      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--success)">✅ 一致</span>`;
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--pos)">✅ 一致</span>`;
     } else {
-      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--danger)">❌ 残り ${v.diff >= 0 ? '+' : ''}${v.diff.toLocaleString()}点</span>`;
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--neg)">❌ 残り ${v.diff >= 0 ? '+' : ''}${v.diff.toLocaleString()}点</span>`;
     }
   }
 
   const rpSumEl = document.getElementById(`edit-rankpt-sum-${gid}`);
   if (rpSumEl) {
     rpSumEl.textContent = `順位点合計：${rankSum >= 0 ? '+' : ''}${rankSum.toLocaleString()} pt`;
-    rpSumEl.style.color = rankSum === 0 ? 'var(--success)' : 'var(--danger)';
+    rpSumEl.style.color = rankSum === 0 ? 'var(--pos)' : 'var(--neg)';
   }
 
   // 各行のプレビュー（全員入力済みのときだけ順位・順位点が確定する）
@@ -1179,27 +1029,27 @@ function startEditChip(idx) {
   const derivedUnit = unitRec ? Math.abs(Math.round(unitRec.chip_pt / unitRec.chip_count)) : 300;
 
   viewEl.innerHTML =
-    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f9fafb;border-radius:8px">
-      <span style="font-size:12px;color:var(--muted)">チップ単価：</span>
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--field);border:1px solid var(--line);border-radius:8px">
+      <span style="font-size:12px;color:var(--ink-3)">チップ単価：</span>
       <input type="number" inputmode="decimal" class="edit-input" id="chip-edit-unit-${idx}" value="${derivedUnit}" style="width:80px">
-      <span style="font-size:12px;color:var(--muted)">pt/枚</span>
+      <span style="font-size:12px;color:var(--ink-3)">pt/枚</span>
     </div>` +
   cg.records.map((c, i) => {
     const p = S.players.find(x => String(x.id) === String(c.player_id));
     const name = p ? p.name : '?';
     const beforeStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
     return `<div style="padding:10px 0;border-bottom:1px solid rgba(245,158,11,0.2)">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(name)}</div>
+      <div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:8px">${esc(name)}</div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
-        <span style="color:var(--dim)">→</span>
-        <span style="font-size:12px;color:var(--muted)">修正後：</span>
+        <span style="font-size:12px;color:var(--ink-3)">修正前：${esc(beforeStr)}</span>
+        <span style="color:var(--ink-3)">→</span>
+        <span style="font-size:12px;color:var(--ink-3)">修正後：</span>
         <input type="text" class="edit-input" id="chip-edit-${idx}-${i}" value="${c.chip_count}">
-        <span style="font-size:12px;color:var(--muted)">枚</span>
+        <span style="font-size:12px;color:var(--ink-3)">枚</span>
       </div>
     </div>`;
   }).join('') +
-  `<div id="chip-edit-sum-${idx}" style="font-size:13px;font-weight:700;margin-top:8px;color:var(--danger)"></div>
+  `<div id="chip-edit-sum-${idx}" style="font-size:14px;font-weight:600;margin-top:8px;color:var(--neg)"></div>
   <div style="margin-top:10px;display:flex;gap:8px">
     <button class="btn btn-primary btn-sm" onclick="saveEditChip(${idx})">保存</button>
     <button class="btn btn-outline btn-sm" onclick="loadHistory()">キャンセル</button>
@@ -1223,7 +1073,7 @@ function updateChipEditSum(idx, count) {
   if (!el) return;
   const str = (sum >= 0 ? '+' : '') + sum;
   el.textContent = `チップ合計：${str} 枚`;
-  el.style.color = sum === 0 ? 'var(--success)' : 'var(--danger)';
+  el.style.color = sum === 0 ? 'var(--pos)' : 'var(--neg)';
 }
 
 async function saveEditChip(idx) {
