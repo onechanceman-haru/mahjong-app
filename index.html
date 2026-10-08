@@ -210,6 +210,27 @@ const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#e879f9','#0ea5e9','#84cc16','#f43f5e','#14b8a6','#a855f7','#f97316','#64748b'];
+// グラフの色はプレイヤーごとに固定する。
+// よく一緒に打つ人同士が似た色にならないよう、色相を離して手で割り当てている。
+// （同じ人がホームのグラフと成績のグラフで同じ色になる）
+const PLAYER_COLORS = {
+  '安部': '#4f46e5', // インディゴ
+  '井上': '#f59e0b', // 琥珀
+  '谷口': '#10b981', // 緑
+  '中田': '#84cc16', // ライム
+  '豊田': '#ef4444', // 赤
+  '酒井': '#0ea5e9', // 空色
+  '藤田': '#a855f7', // パープル
+  '坂井': '#14b8a6', // ティール
+  '森田': '#f43f5e', // ローズ
+  '大和': '#06b6d4', // シアン
+  '土井': '#fb923c', // 橙
+  '金子': '#e879f9', // フクシア
+  '高橋': '#64748b', // スレート
+  'その他': '#94a3b8',
+};
+// 未登録のプレイヤーは従来どおり順番に色を振る
+const colorFor = (name, idx) => PLAYER_COLORS[name] || CHART_COLORS[idx % CHART_COLORS.length];
 let S = { players:[], games:[], results:[], chips:[], memos:[], rankTab:'all' };
 let summaryGroups = [];
 let groupChart = null;
@@ -475,7 +496,7 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
 
   const pids = Object.keys(playerTotals);
   const datasets = pids.map((pid, idx) => {
-    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const color = colorFor(playerTotals[pid].name, idx);
     let cum = 0;
     const data = gameIds.map(gid => {
       const r = dayResults.find(x => String(x.game_id) === String(gid) && String(x.player_id) === String(pid));
@@ -490,7 +511,7 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
   });
 
   legendEl.innerHTML = pids.map((pid, idx) => {
-    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const color = colorFor(playerTotals[pid].name, idx);
     return `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div><span style="font-size:11px;color:var(--muted)">${esc(playerTotals[pid].name)}</span></div>`;
   }).join('');
   legendEl.style.display = 'flex';
@@ -579,7 +600,7 @@ function renderRankings() {
     const avg  = (s.rankSum / s.games).toFixed(2);
     const pts  = s.totalPt;
     const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
-    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
+    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString() + '<span class="unit">pt</span>';
     const bc   = rank <= 3 ? `rank-${rank}` : 'rank-n';
     // 総合タブは平均順位を表示しない（人数別タブのみ表示）
     const sub  = filter === null ? `${s.games}戦` : `${s.games}戦 · 平均 ${avg} 位`;

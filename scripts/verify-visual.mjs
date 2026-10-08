@@ -104,9 +104,19 @@ for (const [path, fn] of Object.entries(EXTRACT)) {
   const before = await snap(a.base, path, fn);
   const after = await snap(b.base, path, fn);
   for (const key of Object.keys(before.data)) {
-    const x = JSON.stringify(before.data[key]), y = JSON.stringify(after.data[key]);
+    // 「pt」の単位表示は今回追加した差分なので、数値の比較からは外す
+    const strip = v => JSON.stringify(v).replace(/pt/g, '');
+    const x = strip(before.data[key]), y = strip(after.data[key]);
     const n = Array.isArray(before.data[key]) ? before.data[key].length : 1;
     report.push({ path, key, n, same: x === y, before: x, after: y });
+  }
+  // 追加した単位表示そのものを確認する
+  for (const [key, label] of [['rankings', 'ホームのランキングに pt が付く'], ['all', '個人成績に pt が付く']]) {
+    const rows = after.data[key];
+    if (!Array.isArray(rows) || !rows.length) continue;
+    const ok = rows.every(r => /pt/.test(r));
+    report.push({ path, key: label, n: rows.length, same: ok,
+      before: JSON.stringify(before.data[key]?.slice(0, 1)), after: JSON.stringify(rows.slice(0, 1)) });
   }
   report.push({ path, key: 'コンソールエラー', n: '-', same: after.errors.length === 0,
     before: `${before.errors.length}件`, after: `${after.errors.length}件` });

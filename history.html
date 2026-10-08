@@ -271,6 +271,27 @@ const DATA_START = '2026-04-07';
 const _params = new URLSearchParams(location.search);
 const currentSeasonId = _params.get('season');
 const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#e879f9','#0ea5e9','#84cc16','#f43f5e','#14b8a6','#a855f7','#f97316','#64748b'];
+// グラフの色はプレイヤーごとに固定する。
+// よく一緒に打つ人同士が似た色にならないよう、色相を離して手で割り当てている。
+// （同じ人がホームのグラフと成績のグラフで同じ色になる）
+const PLAYER_COLORS = {
+  '安部': '#4f46e5', // インディゴ
+  '井上': '#f59e0b', // 琥珀
+  '谷口': '#10b981', // 緑
+  '中田': '#84cc16', // ライム
+  '豊田': '#ef4444', // 赤
+  '酒井': '#0ea5e9', // 空色
+  '藤田': '#a855f7', // パープル
+  '坂井': '#14b8a6', // ティール
+  '森田': '#f43f5e', // ローズ
+  '大和': '#06b6d4', // シアン
+  '土井': '#fb923c', // 橙
+  '金子': '#e879f9', // フクシア
+  '高橋': '#64748b', // スレート
+  'その他': '#94a3b8',
+};
+// 未登録のプレイヤーは従来どおり順番に色を振る
+const colorFor = (name, idx) => PLAYER_COLORS[name] || CHART_COLORS[idx % CHART_COLORS.length];
 
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -420,19 +441,25 @@ function renderStats() {
     const rank = i + 1;
     const pts  = s.totalPt;
     const cls  = pts > 0 ? 'positive' : pts < 0 ? 'negative' : 'neutral';
-    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
+    const str  = (pts > 0 ? '+' : '') + pts.toLocaleString() + '<span class="unit">pt</span>';
     const avg  = s.games ? (s.rankSum / s.games).toFixed(2) : '-';
     const pct  = n => s.games ? (n / s.games * 100).toFixed(0) + '%' : '0%';
     // 総合タブは平均順位を表示しない（人数別タブのみ表示）。stat-itemはflex:1なので残りが等幅になる
     const avgHTML = filter === null ? ''
       : `<div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>`;
-    const r4h  = filter === null || filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
-    const r5h  = filter === null || filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
+    // 順位の色は「1位=緑 / 最下位=赤」。3人・4人・5人打ちで統一する
+    const distCls = (rank, n) => {
+      if (rank === 1) return 'rd-1';
+      if (rank === n) return 'rd-last';
+      if (n === 4) return rank === 2 ? 'rd-2' : 'rd-3';
+      if (n === 5) return rank === 2 ? 'rd-2' : rank === 3 ? 'rd-3' : 'rd-4';
+      return 'rd-3';
+    };
+    const distChip = (rank, cnt) =>
+      `<div class="rank-dist-chip ${distCls(rank, filter)}">${rank}位 ${cnt}(${pct(cnt)})</div>`;
+    const counts = [s.r1, s.r2, s.r3, s.r4, s.r5];
     const rankDist = filter === null ? '' : `<div class="rank-dist">
-        <div class="rank-dist-chip r1">1位 ${s.r1}(${pct(s.r1)})</div>
-        <div class="rank-dist-chip r2">2位 ${s.r2}(${pct(s.r2)})</div>
-        <div class="rank-dist-chip r3">3位 ${s.r3}(${pct(s.r3)})</div>
-        ${r4h}${r5h}
+        ${Array.from({ length: filter }, (_, i) => distChip(i + 1, counts[i])).join('')}
       </div>`;
     return `<div class="player-stat${rank <= 3 ? ` pr-${rank}` : ''}">
       <div class="player-stat-header">
@@ -547,7 +574,7 @@ function renderGraphMode1() {
       cum += cg.records.filter(c => String(c.player_id) === String(p.id)).reduce((s, c) => s + (c.chip_pt || 0), 0);
       data.push(cum);
     });
-    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const color = colorFor(p.name, idx);
     const hidden = !selectedPlayerIds.has(String(p.id));
     datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:2, borderWidth:2, hidden });
     legendItems.push({ name:p.name, color, pid: String(p.id) });
@@ -614,7 +641,7 @@ function renderGraphMode2() {
       return cum;
     });
     if (data.every(v => v === 0)) return;
-    const color = CHART_COLORS[idx % CHART_COLORS.length];
+    const color = colorFor(p.name, idx);
     const hidden = !selectedPlayerIds.has(String(p.id));
     datasets.push({ label:p.name, data, borderColor:color, backgroundColor:color+'22', tension:0.3, fill:false, pointRadius:2, borderWidth:2, hidden });
     legendItems.push({ name:p.name, color, pid: String(p.id) });

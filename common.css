@@ -159,7 +159,8 @@ body { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
 .stat-row .stat-item:last-child .stat-item-value { color: var(--primary); }
 .stat-row .stat-item:last-child .stat-item-label { color: var(--primary); }
 
-/* 順位分布は色で囲んだチップのまま、順位ごとに色を強める */
+/* 順位分布は色で囲んだチップ。1位=緑 / 最下位=赤 を3〜5人打ちで統一し、
+   間は緑→赤の並びになる色を使う（クラスは人数に応じてJSが割り当てる） */
 .rank-dist { gap: 5px; margin-top: 8px; }
 .rank-dist-chip {
   padding: 5px 9px;
@@ -168,7 +169,16 @@ body { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
   font-weight: 700;
   border-width: 1.5px;
 }
-.rank-dist-chip.r1 { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
-.rank-dist-chip.r2 { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
-.rank-dist-chip.r3 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.rank-dist-chip.r4 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.rank-dist-chip.rd-1    { background: #ecfdf5; color: #047857; border-color: #6ee7b7; } /* 1位 緑 */
+.rank-dist-chip.rd-2    { background: #eff6ff; color: #1d4ed8; border-color: #93c5fd; } /* 青 */
+.rank-dist-chip.rd-3    { background: #fef3c7; color: #854d0e; border-color: #fcd34d; } /* 琥珀 */
+.rank-dist-chip.rd-4    { background: #fff7ed; color: #c2410c; border-color: #fdba74; } /* 橙 */
+.rank-dist-chip.rd-last { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; } /* 最下位 赤 */
+
+/* 収支の数値に付ける「pt」は小さく添える（数値を主役のままにする） */
+.rank-pts .unit,
+.player-stat-pt .unit {
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 2px;
+}
