@@ -10,6 +10,108 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="stats.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
+      --success:#10b981; --danger:#ef4444; --warning:#f59e0b;
+      --bg:#f3f4f8; --surface:#ffffff; --border:#e5e7eb;
+      --text:#1f2937; --muted:#6b7280; --dim:#9ca3af;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'Noto Sans JP',-apple-system,sans-serif; background:var(--bg); min-height:100vh; color:var(--text); font-size:16px; padding-bottom:90px; -webkit-font-smoothing:antialiased; }
+
+    .header { position:sticky; top:0; z-index:100; background:var(--surface); border-bottom:1px solid var(--border); box-shadow:0 1px 4px rgba(0,0,0,0.06); padding:0 16px; height:56px; display:flex; align-items:center; gap:12px; }
+    .header-logo { width:34px; height:34px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+    .header-title { font-size:15px; font-weight:700; flex:1; color:var(--text); }
+    .header-badge { font-size:11px; color:var(--primary); background:rgba(79,70,229,0.08); border:1px solid rgba(79,70,229,0.2); padding:4px 10px; border-radius:20px; font-weight:700; white-space:nowrap; }
+
+    .container { max-width:600px; margin:0 auto; padding:16px; }
+
+    .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .stat-card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.05); border-radius:14px; padding:16px; text-align:center; }
+    .stat-value { font-size:32px; font-weight:900; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .stat-label { font-size:12px; color:var(--muted); margin-top:3px; }
+
+    .card { background:var(--surface); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,0,0,0.06); border-radius:16px; padding:16px; margin-bottom:12px; }
+    .card-header { font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .card-header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .card-header-row .card-header { margin-bottom:0; }
+
+    .tab-bar { display:flex; background:#f3f4f6; border-radius:12px; padding:4px; gap:3px; margin-bottom:16px; }
+    .tab-btn { flex:1; padding:10px 6px; border:none; background:transparent; color:var(--muted); border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; min-height:44px; font-family:inherit; }
+    .tab-btn.active { background:var(--primary); color:#fff; }
+
+    .rank-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+    .rank-item:last-child { border-bottom:none; padding-bottom:0; }
+    .rank-badge { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; flex-shrink:0; }
+    .rank-1 { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+    .rank-2 { background:linear-gradient(135deg,#94a3b8,#64748b); color:#fff; }
+    .rank-3 { background:linear-gradient(135deg,#cd7c2f,#92400e); color:#fff; }
+    .rank-n { background:#f3f4f6; color:var(--muted); }
+    .rank-info { flex:1; min-width:0; }
+    .rank-name { font-size:16px; font-weight:700; color:var(--text); }
+    .rank-sub  { font-size:12px; color:var(--muted); margin-top:2px; }
+    .rank-pts  { font-size:18px; font-weight:900; flex-shrink:0; }
+    .positive { color:var(--success); }
+    .negative { color:var(--danger); }
+    .neutral  { color:var(--muted); }
+
+    /* Group Summary */
+    .group-select { background:#f9fafb; border:1.5px solid var(--border); border-radius:10px; padding:7px 10px; font-size:13px; font-weight:700; color:var(--text); outline:none; font-family:inherit; -webkit-appearance:none; cursor:pointer; max-width:180px; }
+    .group-select:focus { border-color:var(--primary); }
+    .balance-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); }
+    .balance-row:last-child { border-bottom:none; }
+    .balance-name { font-size:14px; font-weight:700; color:var(--text); }
+    .balance-val  { font-size:15px; font-weight:900; }
+    .settle-item { display:flex; align-items:center; gap:8px; padding:9px 12px; background:#f9fafb; border:1px solid var(--border); border-radius:10px; margin-bottom:6px; font-size:13px; }
+    .settle-item:last-child { margin-bottom:0; }
+    .settle-from { font-weight:700; color:var(--text); }
+    .settle-arrow { color:var(--muted); flex-shrink:0; }
+    .settle-to { font-weight:700; color:var(--primary); flex:1; }
+    .settle-amt { font-weight:900; color:var(--warning); flex-shrink:0; }
+    .section-sub { font-size:12px; font-weight:700; color:var(--muted); margin:10px 0 8px; }
+
+    .memo-item { position:relative; padding:12px 36px 12px 12px; background:#f9fafb; border:1px solid var(--border); border-radius:12px; margin-bottom:8px; }
+    .memo-delete { position:absolute; top:8px; right:8px; width:22px; height:22px; border:none; background:transparent; color:var(--dim); font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:4px; padding:0; }
+    .memo-delete:hover { color:var(--danger); background:rgba(239,68,68,0.08); }
+    .memo-text { font-size:15px; line-height:1.6; color:var(--text); white-space:pre-wrap; }
+    .memo-meta { font-size:12px; color:var(--muted); margin-top:6px; }
+    .memo-form { margin-top:14px; border-top:1px solid var(--border); padding-top:14px; }
+
+    .form-group { margin-bottom:12px; }
+    .form-label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:7px; }
+    .form-input { width:100%; background:#f9fafb; border:1.5px solid var(--border); border-radius:12px; padding:13px 14px; color:var(--text); font-size:16px; outline:none; font-family:inherit; -webkit-appearance:none; }
+    .form-input:focus { border-color:var(--primary); background:#fff; }
+    .form-input::placeholder { color:var(--dim); }
+    textarea.form-input { resize:vertical; min-height:80px; }
+
+    .btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; min-height:52px; font-family:inherit; width:100%; }
+    .btn:active { opacity:0.8; }
+    .btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+    .btn-past { background:#fff; border:2px solid var(--primary); color:var(--primary); border-radius:14px; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:70px; background:rgba(13,13,26,0.97); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(255,255,255,0.1); display:flex; z-index:100; }
+    .nav-link { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; text-decoration:none; color:#94a3b8; font-size:11px; font-weight:700; min-height:70px; }
+    .nav-link.active { color:#818cf8; }
+    .nav-icon { font-size:22px; }
+
+    .loading { text-align:center; padding:40px 20px; color:var(--muted); }
+    .spinner { width:36px; height:36px; border:3px solid rgba(79,70,229,0.15); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 14px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .empty-state { text-align:center; padding:32px; color:var(--muted); }
+    .empty-icon  { font-size:44px; margin-bottom:10px; }
+    .divider { border:none; border-top:1px solid var(--border); margin:10px 0; }
+
+    .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(30,30,50,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:14px; font-weight:600; z-index:200; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; white-space:nowrap; color:#f1f5f9; }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .toast.success { border-color:#10b981; color:#10b981; }
+    .toast.error   { border-color:#ef4444; color:#ef4444; }
+
+    .chart-wrap { position:relative; height:200px; margin-top:4px; }
+    .chart-legend { display:flex; gap:8px; flex-wrap:wrap; }
+    .legend-item { display:flex; align-items:center; gap:4px; }
+    .legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  </style>
   <link rel="stylesheet" href="common.css">
 </head>
 <body>
@@ -107,10 +209,7 @@ const DATA_START = '2026-04-07';
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 色は common.css のトークンから読む（ダークモードにも追従する）
-const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-// グラフの系列色6色。プラス(青)・マイナス(赤)・ブランド(緑)の色は使わない
-const CHART_COLORS = ['--s1','--s2','--s3','--s4','--s5','--s6'].map(cssVar);
+const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#fb923c','#e879f9','#0ea5e9','#84cc16','#f43f5e','#14b8a6','#a855f7','#f97316','#64748b'];
 let S = { players:[], games:[], results:[], chips:[], memos:[], rankTab:'all' };
 let summaryGroups = [];
 let groupChart = null;
@@ -285,7 +384,7 @@ function renderGroupSummary(group) {
   const balances = sorted.map(p => ({ name: p.name, net: p.pt }));
   const txns = minSettlement(balances);
   const txnHTML = !txns.length
-    ? '<div style="color:var(--ink-3);font-size:14px;font-weight:600;text-align:center;padding:8px 0">精算不要</div>'
+    ? '<div style="color:var(--success);font-size:13px;font-weight:700;text-align:center;padding:8px 0">✅ 精算不要</div>'
     : txns.map(t => `<div class="settle-item">
         <span class="settle-from">${esc(t.from)}</span>
         <span class="settle-arrow">→</span>
@@ -295,7 +394,7 @@ function renderGroupSummary(group) {
 
   // 同じ日・同じメンバーで続けて打つための導線（groups行が特定できて対局がある場合のみ）
   const sameSetupHTML = (dayGames.length && findGroupRow(date, groupName))
-    ? `<button class="btn btn-primary" style="margin-top:12px" onclick="goInputSameSetup()">＋ 同じ設定で結果入力</button>`
+    ? `<button class="btn btn-past" style="margin-top:12px" onclick="goInputSameSetup()">＋ 同じ設定で結果入力</button>`
     : '';
 
   el.innerHTML = `
@@ -392,7 +491,7 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
 
   legendEl.innerHTML = pids.map((pid, idx) => {
     const color = CHART_COLORS[idx % CHART_COLORS.length];
-    return `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div><span style="font-size:12px;color:var(--ink-3)">${esc(playerTotals[pid].name)}</span></div>`;
+    return `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div><span style="font-size:11px;color:var(--muted)">${esc(playerTotals[pid].name)}</span></div>`;
   }).join('');
   legendEl.style.display = 'flex';
   wrapEl.style.display = 'block';
@@ -409,7 +508,7 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
         const { ctx, chartArea } = chart;
         ctx.save();
         ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y);
-        ctx.strokeStyle = cssVar('--ink-3'); ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke();
+        ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.stroke();
         ctx.restore();
       }
     }],
@@ -418,14 +517,14 @@ function renderGroupChart(dayGames, playerTotals, date, groupName) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: cssVar('--toast-bg'), titleColor: cssVar('--toast-ink'), bodyColor: cssVar('--toast-ink'),
-          borderColor: cssVar('--line'), borderWidth: 1,
+          backgroundColor: '#1f2937', titleColor: '#9ca3af', bodyColor: '#f9fafb',
+          borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
           callbacks: { label: ctx => { const v = ctx.parsed.y; return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v.toLocaleString()} pt`; } }
         }
       },
       scales: {
-        x: { ticks: { color: cssVar('--ink-3'), font: { size: 10 } }, grid: { color: cssVar('--grid') } },
-        y: { ticks: { color: cssVar('--ink-3'), font: { size: 11 }, callback: v => (v >= 0 ? '+' : '') + v.toLocaleString() }, grid: { color: cssVar('--grid') } }
+        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#f3f4f6' } },
+        y: { ticks: { color: '#9ca3af', font: { size: 11 }, callback: v => (v >= 0 ? '+' : '') + v.toLocaleString() }, grid: { color: '#f3f4f6' } }
       }
     }
   });

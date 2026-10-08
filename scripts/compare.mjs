@@ -14,7 +14,7 @@ const PAGES = [
   ['成績（個人成績・履歴）', 'history', 'stats'],
   ['シーズン一覧',           'past',    'seasons'],
 ];
-const SCHEMES = [['light', 'ライト'], ['dark', 'ダーク']];
+const SCHEMES = [['light', '通常']];
 const W = '375';
 
 const cell = (src, label) => {
@@ -27,14 +27,12 @@ const cell = (src, label) => {
 
 const body = SCHEMES.map(([sc, scLabel]) => `
 <h2>${scLabel}モード（幅 ${W}px）</h2>
-${PAGES.map(([title, before, mock]) => `
+${PAGES.map(([title, before]) => `
 <section>
   <h3>${title}</h3>
   <div class="row">
-    ${cell(`before/${before}-${W}-${sc}.png`, '刷新前')}
-    ${cell(`after/${before}-${W}-${sc}.png`, '刷新後（実装）')}
-    ${cell(`b/${mock}-${W}-${sc}.png`, 'B案モック（参考）')}
-    ${cell(`a/${mock}-${W}-${sc}.png`, 'A案モック（不採用）')}
+    ${cell(`before/${before}-${W}-${sc}.png`, '変更前')}
+    ${cell(`after/${before}-${W}-${sc}.png`, '変更後')}
   </div>
 </section>`).join('')}
 `).join('');
@@ -44,7 +42,7 @@ writeFileSync(OUT, `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ビジュアル比較 — 刷新前 / 刷新後</title>
+<title>見た目の比較 — 変更前 / 変更後</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -67,8 +65,8 @@ writeFileSync(OUT, `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>ビジュアルデザイン刷新 — 刷新前後の比較</h1>
-<div class="lead">左から: 刷新前（本番データ） / 刷新後（実装・本番データ） / B案モック / A案モック。いずれも幅 375px・1画面分。</div>
+<h1>見た目の調整 — 変更前後の比較</h1>
+<div class="lead">左: 変更前 / 右: 変更後。いずれも本番データ・幅 375px・1画面分。</div>
 ${body}
 </body>
 </html>
