@@ -94,6 +94,30 @@
     /* History Tab */
     .filter-row { display:flex; gap:8px; margin-bottom:12px; align-items:flex-end; }
     .filter-row > div { flex:1; }
+    /* 1段目: 日ごとのカード */
+    .day-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
+    .day-card-header { display:flex; align-items:center; gap:10px; padding:14px; cursor:pointer; }
+    .day-card-header:active { background:rgba(0,0,0,0.03); }
+    .day-meta { flex:1; min-width:0; }
+    .day-title { font-size:15px; font-weight:900; color:var(--text); }
+    .day-players { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5; }
+    .day-expand-icon { font-size:16px; color:var(--muted); flex-shrink:0; transition:transform 0.2s; }
+    .day-card.expanded .day-expand-icon { transform:rotate(180deg); }
+    .day-card-body { display:none; padding:0 10px 10px; }
+    .day-card.expanded .day-card-body { display:block; }
+    .game-num { font-weight:900; color:var(--text); }
+    .game-top { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* 対局の移動 */
+    .move-panel { margin-top:10px; padding:10px 12px; background:rgba(79,70,229,0.06); border:1px solid rgba(79,70,229,0.25); border-radius:10px; }
+    .move-title { font-size:12px; font-weight:700; color:var(--primary-dark); margin-bottom:8px; }
+    .move-empty { font-size:12px; color:var(--muted); line-height:1.6; }
+    .game-card.just-moved { animation:justMoved 2s ease-out; }
+    @keyframes justMoved {
+      0%, 55% { background:#fef3c7; border-color:#f59e0b; }
+      100%    { background:#f9fafb; border-color:var(--border); }
+    }
+
     .game-card { background:#f9fafb; border:1px solid var(--border); border-radius:14px; margin-bottom:10px; overflow:hidden; }
     .game-card-header { display:flex; align-items:center; gap:10px; padding:13px 14px; cursor:pointer; }
     .game-card-header:active { background:rgba(0,0,0,0.03); }
@@ -250,8 +274,15 @@ const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let S = { players:[], games:[], results:[], chips:[], statTab:null };
+let S = { players:[], games:[], results:[], chips:[], groups:[], statTab:null };
 let histAllResults = [];
+// 履歴（日ごと→対局ごと）の表示状態。再描画しても開いたままにするために保持する
+let histData = { players:[], games:[], results:[], chips:[] };
+let histDays = [];
+let histGamesById = new Map();
+let openDays = new Set();
+let openGames = new Set();
+let justMovedGameId = null;
 
 // 同一グループのチップを提出単位でグループ化（10秒以内のレコードを同一バッチとみなす）
 function groupChipsBySubmission(chips) {
@@ -329,14 +360,23 @@ async function loadData() {
     else q = q.gte('date', DATA_START);
     return q;
   };
-  const [r1, games, chips] = await Promise.all([
+  // groups は対局の「移動」先の候補に使う
+  const buildGroups = () => {
+    let q = sb.from('groups').select('*').order('id', { ascending: true });
+    if (currentSeasonId) q = q.eq('season_id', Number(currentSeasonId));
+    else q = q.is('season_id', null);
+    return q;
+  };
+  const [r1, games, chips, r4] = await Promise.all([
     sb.from('players').select('*').order('name'),
     fetchAllRows(buildGames),
-    fetchAllRows(buildChips)
+    fetchAllRows(buildChips),
+    buildGroups()
   ]);
   S.players = r1.data || [];
   S.games   = games;
   S.chips   = chips;
+  S.groups  = r4.data || [];
   if (S.games.length > 0) {
     const ids = S.games.map(g => g.id);
     S.results = await fetchAllRows(() =>
@@ -620,6 +660,29 @@ function clearChart() {
 }
 
 // ── History / Edit ──
+// game_id が多いと1リクエストの上限(1000件 / URL長)を超えるため、分割して全件取得する
+async function fetchResultsByGameIds(ids) {
+  const CHUNK = 200;
+  let all = [];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const part = ids.slice(i, i + CHUNK);
+    const rows = await fetchAllRows(() =>
+      sb.from('game_results').select('*').in('game_id', part).order('id', { ascending: true }));
+    all = all.concat(rows);
+  }
+  return all;
+}
+
+// 日ごとのカードを識別するキー（HTMLのidとonclick引数に安全に埋め込める形にする）
+const dayKey = (date, groupName) => encodeURIComponent(`${date}|${groupName || ''}`);
+
+// 「10/8（水） · グループ名」。group_nameが日付形式なら冗長なので省略する
+function groupLabel(date, groupName, { always = false } = {}) {
+  const name = groupName || '';
+  const isDateFmt = /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(name);
+  return fmtDateDow(date) + (name && (always || !isDateFmt) ? ' · ' + name : '');
+}
+
 async function loadHistory() {
   const from = document.getElementById('hist-from').value;
   const to   = document.getElementById('hist-to').value;
@@ -644,128 +707,295 @@ async function loadHistory() {
   const allChips = chips || [];
 
   const safeGames = games || [];
-  let allResults = [];
-  if (safeGames.length > 0) {
-    const ids = safeGames.map(g => g.id);
-    const { data: results } = await sb.from('game_results').select('*').in('game_id', ids);
-    allResults = results || [];
-  }
+  // 1000件を超えても取りこぼさないよう分割＋ページングで取得する
+  const allResults = safeGames.length ? await fetchResultsByGameIds(safeGames.map(g => g.id)) : [];
   histAllResults = allResults;
+  histData = { players: S.players, games: safeGames, results: allResults, chips: allChips };
+  histGamesById = new Map(safeGames.map(g => [String(g.id), g]));
 
   if (error || (!safeGames.length && !allChips.length)) {
+    histDays = [];
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">🎴</div>対局データがありません</div>'; return;
   }
 
   // チップを提出単位でグループ化（同一バッチ = 10秒以内の同グループレコード）
   histChipGroupsList = groupChipsBySubmission(allChips);
 
-  // Build unified timeline (descending)
-  const gameEvents = safeGames.map(g => ({ type:'game', sortKey: g.date + '|' + (g.created_at || ''), data: g }));
-  const chipEvents = histChipGroupsList.map((cg, i) => ({ type:'chip', sortKey: cg.date + '|' + (cg.created_at || ''), data: cg, chipIdx: i }));
-  const events = [...gameEvents, ...chipEvents].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  // 日 × group_name でまとめる（引継ぎは専用カードで一番下に置く）
+  const carryGames = safeGames.filter(isCarryover);
+  const map = new Map();
+  const touch = (date, groupName) => {
+    const k = dayKey(date, groupName);
+    if (!map.has(k)) map.set(k, { key: k, date, groupName: groupName || '', games: [], chipIdxs: [] });
+    return map.get(k);
+  };
+  safeGames.filter(g => !isCarryover(g)).forEach(g => touch(g.date, g.group_name || '').games.push(g));
+  histChipGroupsList.forEach((cg, i) => touch(cg.date, cg.group_name || '').chipIdxs.push(i));
 
-  el.innerHTML = events.map(evt => {
-    if (evt.type === 'game') {
-      const g = evt.data;
-      const gResults = allResults.filter(r => r.game_id === g.id).sort((a, b) => a.rank - b.rank);
-      // 引継ぎゲームは専用表示
-      if (isCarryover(g)) {
-        const sorted = [...gResults].sort((a, b) => b.total_pt - a.total_pt);
-        return `<div class="game-card" id="gc-${g.id}">
-          <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
-            <div class="game-meta">
-              <div class="game-date" style="color:var(--warning)">📦 過去分引継ぎ</div>
-              <div class="game-title">前シーズンまでの通算持ち越し</div>
+  const days = [...map.values()];
+  days.forEach(d => {
+    // 第◯局は created_at の古い順に採番する（表示は新しい順）
+    d.games.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || a.id - b.id);
+    d.games.forEach((g, i) => { g.__no = i + 1; });
+    d.chipIdxs.sort((a, b) =>
+      (histChipGroupsList[b].created_at || '').localeCompare(histChipGroupsList[a].created_at || ''));
+    d.latest = d.games.length ? (d.games[d.games.length - 1].created_at || '') : '';
+  });
+  days.sort((a, b) => b.date.localeCompare(a.date) || String(b.latest).localeCompare(String(a.latest)));
+  histDays = days;
+
+  el.innerHTML = days.map(renderDayCard).join('')
+               + carryGames.map(g => renderCarryoverCard(g, allResults)).join('');
+  restoreOpenState();
+  flashMovedGame();
+}
+
+// ── 1段目: 日ごとのカード（日付と参加者のみ） ──
+function renderDayCard(d) {
+  // 参加者は「グループ収支サマリーと同じ集計」から取り出す（stats.js と共用）
+  const totals = mjComputeGroupTotals(histData, d.date, d.groupName);
+  const order  = new Map(S.players.map((p, i) => [String(p.id), i]));
+  const names  = totals
+    .slice()
+    .sort((a, b) => (order.get(String(a.player_id)) ?? 9999) - (order.get(String(b.player_id)) ?? 9999))
+    .map(t => esc(t.name));
+
+  const body = d.chipIdxs.map(i => renderChipCard(i)).join('')
+             + [...d.games].reverse().map(g => renderGameCard(g)).join('');
+
+  return `<div class="day-card" id="day-${d.key}">
+    <div class="day-card-header" onclick="toggleDayCard('${d.key}')">
+      <div class="day-meta">
+        <div class="day-title">${esc(groupLabel(d.date, d.groupName))}</div>
+        <div class="day-players">${names.length ? names.join(' / ') : '—'}</div>
+      </div>
+      <span class="day-expand-icon">▼</span>
+    </div>
+    <div class="day-card-body">${body}</div>
+  </div>`;
+}
+
+// ── 2段目: 対局ごとのカード ──
+function renderGameCard(g) {
+  const gResults = histAllResults.filter(r => r.game_id === g.id).sort((a, b) => a.rank - b.rank);
+  const pcLabel  = g.player_count === 3 ? '3人' : g.player_count === 5 ? '5人' : '4人';
+  const top = gResults.slice(0, 2).map(r => {
+    const p = S.players.find(x => String(x.id) === String(r.player_id));
+    return `${r.rank}位 ${esc(p ? p.name : '?')} ${r.total_pt >= 0 ? '+' : ''}${r.total_pt.toLocaleString()}`;
+  }).join(' ／ ');
+
+  return `<div class="game-card" id="gc-${g.id}">
+    <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
+      <div class="game-meta">
+        <div class="game-date"><span class="game-num">第${g.__no || '?'}局</span>　${fmtTime(g.created_at)} · ${pcLabel}打ち</div>
+        <div class="game-title game-top">${top || '—'}</div>
+      </div>
+      <span class="game-expand-icon">▼</span>
+    </div>
+    <div class="game-card-body">
+      <div id="results-view-${g.id}">
+        ${gResults.map(r => {
+          const p   = S.players.find(x => String(x.id) === String(r.player_id));
+          const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
+          const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
+          const rc  = r.rank <= 3 ? `r${r.rank}` : '';
+          return `<div class="result-row">
+            <div class="result-rank ${rc}">${r.rank}</div>
+            <div class="result-name">${esc(p ? p.name : '?')}</div>
+            <div class="result-pts">
+              <div class="result-total ${cls}">${str} pt</div>
+              <div class="result-sub">素点 ${mjScorePtToRaw(r.score_pt).toLocaleString()} · ${r.score_pt >= 0 ? '+' : ''}${r.score_pt} + ${r.bonus_pt >= 0 ? '+' : ''}${r.bonus_pt}</div>
             </div>
-            <span class="game-expand-icon">▼</span>
-          </div>
-          <div class="game-card-body">
-            ${sorted.map(r => {
-              const p   = S.players.find(x => String(x.id) === String(r.player_id));
-              const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
-              const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
-              return `<div class="result-row">
-                <div class="result-rank" style="background:#f3f4f6;color:var(--muted)">—</div>
-                <div class="result-name">${esc(p ? p.name : '?')}</div>
-                <div class="result-pts">
-                  <div class="result-total ${cls}">${str} pt</div>
-                </div>
-              </div>`;
-            }).join('')}
+          </div>`;
+        }).join('')}
+        <div class="game-actions">
+          <button class="btn btn-outline btn-sm" onclick="startEditGame('${g.id}')">✏️ 編集</button>
+          <button class="btn btn-outline btn-sm" onclick="startMoveGame('${g.id}')">↔ 移動</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteGame('${g.id}')">🗑 削除</button>
+        </div>
+      </div>
+      <div class="move-panel" id="move-panel-${g.id}" style="display:none"></div>
+    </div>
+  </div>`;
+}
+
+// ── 引継ぎ対局（専用カード・一番下） ──
+function renderCarryoverCard(g, allResults) {
+  const sorted = allResults.filter(r => r.game_id === g.id).sort((a, b) => b.total_pt - a.total_pt);
+  return `<div class="game-card" id="gc-${g.id}">
+    <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
+      <div class="game-meta">
+        <div class="game-date" style="color:var(--warning)">📦 過去分引継ぎ</div>
+        <div class="game-title">前シーズンまでの通算持ち越し</div>
+      </div>
+      <span class="game-expand-icon">▼</span>
+    </div>
+    <div class="game-card-body">
+      ${sorted.map(r => {
+        const p   = S.players.find(x => String(x.id) === String(r.player_id));
+        const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
+        const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
+        return `<div class="result-row">
+          <div class="result-rank" style="background:#f3f4f6;color:var(--muted)">—</div>
+          <div class="result-name">${esc(p ? p.name : '?')}</div>
+          <div class="result-pts">
+            <div class="result-total ${cls}">${str} pt</div>
           </div>
         </div>`;
-      }
-      const pcLabel  = g.player_count === 3 ? '3人' : g.player_count === 5 ? '5人' : '4人';
-      const gLabel   = g.group_name ? g.group_name : '対局';
-      const createdStr = fmtCreatedAt(g.created_at);
-      return `<div class="game-card" id="gc-${g.id}">
-        <div class="game-card-header" onclick="toggleGameCard('${g.id}')">
-          <div class="game-meta">
-            <div class="game-date">${fmtDate(g.date)} · ${pcLabel}打ち · ${createdStr}</div>
-            <div class="game-title">${esc(gLabel)}</div>
-          </div>
-          <span class="game-expand-icon">▼</span>
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── チップ精算（その日の一番上） ──
+function renderChipCard(idx) {
+  const cg = histChipGroupsList[idx];
+  if (!cg) return '';
+  const timeStr = fmtTime(cg.created_at);
+  return `<div class="chip-card" id="chip-card-${idx}">
+    <div style="padding:13px 14px">
+      <div style="font-size:12px;color:var(--warning);font-weight:700;margin-bottom:8px">
+        🎯 チップ精算${timeStr ? ' · ' + timeStr : ''}
+      </div>
+      <div id="chip-view-${idx}">
+        ${cg.records.map(c => {
+          const p   = S.players.find(x => String(x.id) === String(c.player_id));
+          const cls = c.chip_count > 0 ? 'positive' : c.chip_count < 0 ? 'negative' : 'neutral';
+          const countStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
+          const ptStr = c.chip_pt != null ? `  (${c.chip_pt >= 0 ? '+' : ''}${c.chip_pt.toLocaleString()} pt)` : '';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(245,158,11,0.15)">
+            <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(p ? p.name : '?')}</span>
+            <span class="${cls}" style="font-size:14px;font-weight:900">${countStr}<span style="font-size:12px;font-weight:600;color:var(--muted)">${ptStr}</span></span>
+          </div>`;
+        }).join('')}
+        <div class="game-actions" style="margin-top:10px">
+          <button class="btn btn-outline btn-sm" onclick="startEditChip(${idx})">✏️ 編集</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteChipGroup(${idx})">🗑 削除</button>
         </div>
-        <div class="game-card-body">
-          <div id="results-view-${g.id}">
-            ${gResults.map(r => {
-              const p   = S.players.find(x => String(x.id) === String(r.player_id));
-              const cls = r.total_pt > 0 ? 'positive' : r.total_pt < 0 ? 'negative' : 'neutral';
-              const str = (r.total_pt > 0 ? '+' : '') + r.total_pt.toLocaleString();
-              const rc  = r.rank <= 3 ? `r${r.rank}` : '';
-              return `<div class="result-row">
-                <div class="result-rank ${rc}">${r.rank}</div>
-                <div class="result-name">${esc(p ? p.name : '?')}</div>
-                <div class="result-pts">
-                  <div class="result-total ${cls}">${str} pt</div>
-                  <div class="result-sub">素点 ${mjScorePtToRaw(r.score_pt).toLocaleString()} · ${r.score_pt >= 0 ? '+' : ''}${r.score_pt} + ${r.bonus_pt >= 0 ? '+' : ''}${r.bonus_pt}</div>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-          <div class="game-actions">
-            <button class="btn btn-outline btn-sm" onclick="startEditGame('${g.id}')">✏️ 編集</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteGame('${g.id}')">🗑 削除</button>
-          </div>
-        </div>
-      </div>`;
-    } else {
-      const cg = evt.data;
-      const idx = evt.chipIdx;
-      const createdStr = fmtCreatedAt(cg.created_at);
-      const groupLabel = cg.group_name ? ` · ${esc(cg.group_name)}` : '';
-      return `<div class="chip-card" id="chip-card-${idx}">
-        <div style="padding:13px 14px">
-          <div style="font-size:12px;color:var(--warning);font-weight:700;margin-bottom:8px">
-            🎯 チップ精算 · ${fmtDate(cg.date)}${groupLabel}${createdStr ? ' · ' + createdStr : ''}
-          </div>
-          <div id="chip-view-${idx}">
-            ${cg.records.map(c => {
-              const p   = S.players.find(x => String(x.id) === String(c.player_id));
-              const cls = c.chip_count > 0 ? 'positive' : c.chip_count < 0 ? 'negative' : 'neutral';
-              const countStr = (c.chip_count > 0 ? '+' : '') + c.chip_count + ' 枚';
-              const ptStr = c.chip_pt != null ? `  (${c.chip_pt >= 0 ? '+' : ''}${c.chip_pt.toLocaleString()} pt)` : '';
-              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(245,158,11,0.15)">
-                <span style="font-size:14px;font-weight:700;color:var(--text)">${esc(p ? p.name : '?')}</span>
-                <span class="${cls}" style="font-size:14px;font-weight:900">${countStr}<span style="font-size:12px;font-weight:600;color:var(--muted)">${ptStr}</span></span>
-              </div>`;
-            }).join('')}
-            <div class="game-actions" style="margin-top:10px">
-              <button class="btn btn-outline btn-sm" onclick="startEditChip(${idx})">✏️ 編集</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteChipGroup(${idx})">🗑 削除</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
-  }).join('');
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── 開閉状態（再描画しても開いたままにする） ──
+function restoreOpenState() {
+  openDays.forEach(k => document.getElementById(`day-${k}`)?.classList.add('expanded'));
+  openGames.forEach(id => document.getElementById(`gc-${id}`)?.classList.add('expanded'));
+}
+
+function toggleDayCard(key) {
+  const el = document.getElementById(`day-${key}`);
+  if (!el) return;
+  el.classList.toggle('expanded');
+  if (el.classList.contains('expanded')) openDays.add(key); else openDays.delete(key);
 }
 
 function toggleGameCard(gid) {
-  document.getElementById(`gc-${gid}`).classList.toggle('expanded');
+  const el = document.getElementById(`gc-${gid}`);
+  if (!el) return;
+  el.classList.toggle('expanded');
+  if (el.classList.contains('expanded')) openGames.add(String(gid)); else openGames.delete(String(gid));
+}
+
+// ── 対局の移動 ──
+function startMoveGame(gid) {
+  const g = histGamesById.get(String(gid));
+  const panel = document.getElementById(`move-panel-${gid}`);
+  if (!g || !panel) return;
+
+  const cands = (S.groups || [])
+    .filter(x => !(x.date === g.date && (x.name || '') === (g.group_name || '')))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  if (!cands.length) {
+    panel.innerHTML = `<div class="move-empty">移動先のグループがありません。<br>先に入力画面でグループを登録してください。</div>
+      <div class="game-actions"><button class="btn btn-outline btn-sm" onclick="cancelMoveGame('${gid}')">閉じる</button></div>`;
+    panel.style.display = 'block';
+    return;
+  }
+
+  panel.innerHTML = `<div class="move-title">移動先のグループを選んでください</div>
+    <select class="form-input" id="move-sel-${gid}">
+      ${cands.map(x => `<option value="${x.id}">${esc(groupLabel(x.date, x.name, { always: true }))}</option>`).join('')}
+    </select>
+    <div class="game-actions">
+      <button class="btn btn-primary btn-sm" onclick="confirmMoveGame('${gid}')">移動する</button>
+      <button class="btn btn-outline btn-sm" onclick="cancelMoveGame('${gid}')">キャンセル</button>
+    </div>`;
+  panel.style.display = 'block';
+}
+
+function cancelMoveGame(gid) {
+  const panel = document.getElementById(`move-panel-${gid}`);
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.style.display = 'none';
+}
+
+async function confirmMoveGame(gid) {
+  const g = histGamesById.get(String(gid));
+  const sel = document.getElementById(`move-sel-${gid}`);
+  if (!g || !sel) return;
+  const target = (S.groups || []).find(x => String(x.id) === String(sel.value));
+  if (!target) { toast('移動先が見つかりません', 'error'); return; }
+
+  const label = `第${g.__no || '?'}局（${fmtTime(g.created_at)}）`;
+  const msg = `${groupLabel(g.date, g.group_name, { always: true })} の${label}を\n`
+            + `${groupLabel(target.date, target.name, { always: true })} に移動しますか？`;
+  if (!confirm(msg)) return;
+
+  const srcDate = g.date, srcName = g.group_name || '';
+  // games の date / group_name / season_id だけを書き換える（game_results は game_id で紐付くため変更不要）
+  const { error } = await sb.from('games').update({
+    date: target.date, group_name: target.name, season_id: target.season_id
+  }).eq('id', g.id);
+  if (error) { toast('移動に失敗しました', 'error'); return; }
+  toast('移動しました ✓', 'success');
+
+  // 移動先の日のカードを開き、移した対局をハイライトする
+  openDays.add(dayKey(target.date, target.name || ''));
+  openGames.add(String(gid));
+  justMovedGameId = String(gid);
+
+  await loadData();
+  await loadHistory();
+  await offerDeleteEmptyGroup(srcDate, srcName, target.season_id);
+}
+
+function flashMovedGame() {
+  if (!justMovedGameId) return;
+  const card = document.getElementById(`gc-${justMovedGameId}`);
+  justMovedGameId = null;
+  if (!card) return;
+  card.classList.add('just-moved');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => card.classList.remove('just-moved'), 2200);
+}
+
+// 移動元に対局もチップも残らなくなったら、空のグループを削除するか確認する
+async function offerDeleteEmptyGroup(date, name, seasonId) {
+  const row = (S.groups || []).find(x => x.date === date && (x.name || '') === (name || ''));
+  if (!row) return; // groups 行が無ければ削除対象なし
+
+  let gq = sb.from('games').select('id').eq('date', date).limit(1);
+  let cq = sb.from('chip_settlements').select('id').eq('date', date).limit(1);
+  gq = name ? gq.eq('group_name', name) : gq.is('group_name', null);
+  cq = name ? cq.eq('group_name', name) : cq.is('group_name', null);
+  if (seasonId != null) { gq = gq.eq('season_id', seasonId); cq = cq.eq('season_id', seasonId); }
+  const [{ data: remainGames }, { data: remainChips }] = await Promise.all([gq, cq]);
+  if ((remainGames && remainGames.length) || (remainChips && remainChips.length)) return;
+
+  if (!confirm(`空になったグループ ${groupLabel(date, name, { always: true })} を削除しますか？`)) return;
+  const { error } = await sb.from('groups').delete().eq('id', row.id);
+  if (error) { toast('グループの削除に失敗しました', 'error'); return; }
+  toast('空のグループを削除しました ✓', 'success');
+  openDays.delete(dayKey(date, name));
+  await loadData();
+  await loadHistory();
 }
 
 function startEditGame(gid) {
+  cancelMoveGame(gid); // 移動パネルが開いていたら閉じる
   const gResults = histAllResults.filter(r => String(r.game_id) === String(gid)).sort((a, b) => a.rank - b.rank);
   const viewEl   = document.getElementById(`results-view-${gid}`);
 
@@ -923,7 +1153,7 @@ async function saveEditGame(gid) {
   if (errors.length) { toast('一部の更新に失敗しました', 'error'); return; }
   toast('更新しました ✓', 'success');
   await loadData();
-  loadHistory();
+  await loadHistory();
 }
 
 async function deleteGame(gid) {
@@ -932,9 +1162,10 @@ async function deleteGame(gid) {
   const { error } = await sb.from('games').delete().eq('id', gid);
   if (error) { toast('削除に失敗しました', 'error'); return; }
   toast('削除しました ✓', 'success');
-  S.games   = S.games.filter(g => g.id !== gid);
-  S.results = S.results.filter(r => r.game_id !== gid);
-  loadHistory();
+  S.games   = S.games.filter(g => String(g.id) !== String(gid));
+  S.results = S.results.filter(r => String(r.game_id) !== String(gid));
+  openGames.delete(String(gid)); // 開閉状態からも外す（日のカードは開いたまま）
+  await loadHistory();
 }
 
 // ── Chip Edit / Delete ──
@@ -1016,7 +1247,8 @@ async function saveEditChip(idx) {
 
   if (errors.length) { toast('一部の更新に失敗しました', 'error'); return; }
   toast('チップ精算を更新しました ✓', 'success');
-  loadHistory();
+  await loadData();
+  await loadHistory();
 }
 
 async function deleteChipGroup(idx) {
@@ -1029,7 +1261,8 @@ async function deleteChipGroup(idx) {
   const { error } = await sb.from('chip_settlements').delete().in('id', ids);
   if (error) { toast('削除に失敗しました', 'error'); return; }
   toast('チップ精算を削除しました ✓', 'success');
-  loadHistory();
+  await loadData();
+  await loadHistory();
 }
 
 // ── Utilities ──
@@ -1043,6 +1276,25 @@ function fmtDateShort(d) {
   if (!d) return '';
   const [, m, day] = d.split('-');
   return `${parseInt(m)}/${parseInt(day)}`;
+}
+
+// 「10/8（水）」
+const DOW = ['日','月','火','水','木','金','土'];
+function fmtDateDow(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-').map(Number);
+  const dt = new Date(y, m - 1, day);
+  const dow = isNaN(dt.getTime()) ? '' : `（${DOW[dt.getDay()]}）`;
+  return `${m}/${day}${dow}`;
+}
+
+// 「14:32」
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fmtCreatedAt(iso) {

@@ -81,6 +81,34 @@ function mjComputeStats(data, pcFilter = null) {
     .sort((a, b) => b.totalPt - a.totalPt);
 }
 
+// 1グループ（date + group_name）の収支を集計する。
+// index.html のグループ収支サマリーと history.html の日別カードで共用する。
+//   data: { players, games, results, chips }
+// 戻り値: [{ player_id, name, pt }] を pt の降順
+function mjComputeGroupTotals(data, date, groupName) {
+  const gname = groupName || '';
+  const gameIds = new Set((data.games || [])
+    .filter(g => g.date === date && (g.group_name || '') === gname)
+    .map(g => g.id));
+
+  const nameOf = pid => {
+    const p = (data.players || []).find(x => String(x.id) === String(pid));
+    return p ? p.name : '?';
+  };
+  const totals = new Map();
+  const add = (pid, pt) => {
+    const k = String(pid);
+    if (!totals.has(k)) totals.set(k, { player_id: pid, name: nameOf(pid), pt: 0 });
+    totals.get(k).pt += pt;
+  };
+
+  (data.results || []).filter(r => gameIds.has(r.game_id)).forEach(r => add(r.player_id, r.total_pt || 0));
+  (data.chips || []).filter(c => c.date === date && (c.group_name || '') === gname)
+    .forEach(c => add(c.player_id, c.chip_pt || 0));
+
+  return [...totals.values()].sort((a, b) => b.pt - a.pt);
+}
+
 // チップ枚数の集計
 function mjComputeChipCounts(data) {
   const map = {};

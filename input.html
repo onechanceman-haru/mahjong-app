@@ -293,7 +293,8 @@ const SUPABASE_URL = 'https://kqrevvjhfkxfuitngyoc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcmV2dmpoZmt4ZnVpdG5neW9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzUzMDIsImV4cCI6MjA5NTAxMTMwMn0.bRFBt3KQ3R8IhZRjjVs6DWtWvFFJyt45pYTTxXDGevs';
 const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-const currentSeasonId = new URLSearchParams(location.search).get('season');
+const _params = new URLSearchParams(location.search);
+const currentSeasonId = _params.get('season');
 
 // 順位点の既定値は scoring.js と共有（値は従来どおり）
 const RANK_DEFAULTS = MJ_RANK_DEFAULTS;
@@ -361,6 +362,10 @@ async function init() {
     }
   }
   players = (data || []).sort((a, b) => (gameCounts[b.id] || 0) - (gameCounts[a.id] || 0));
+
+  // ?gid=..&pc=..&pids=..&focus=score （ホームの「同じ設定で結果入力」）を反映
+  applySameSetupParams();
+
   // 保存済み設定をUIに反映
   const pcBtn = document.getElementById(`pc-${cfg.playerCount}`);
   if (pcBtn) {
@@ -371,11 +376,62 @@ async function init() {
   buildChipPlayerGrid();
   renderPlayerList();
   updateRankPointsUI();
+  updateSelectedCount();
   // 保存済み参加者がいれば結果入力欄を復元
   if (cfg.selectedPids.length) {
-    updateSelectedCount();
     buildGameRows();
+    if (_params.get('focus') === 'score') focusScoreInput();
   }
+}
+
+// ホームから渡されたグループ・人数・参加者を復元する。
+// 不正な値（存在しないプレイヤー／人数の不一致）は選び直しの状態に戻して通知する。
+function applySameSetupParams() {
+  const gidParam  = _params.get('gid');
+  const pidsParam = _params.get('pids');
+  const pcParam   = parseInt(_params.get('pc'), 10);
+  if (!gidParam && !pidsParam && !Number.isFinite(pcParam)) return;
+
+  if (gidParam) {
+    if (groups.find(x => String(x.id) === String(gidParam))) {
+      selectedGid = String(gidParam);
+      selectedChipGid = String(gidParam);
+      populateGroupSelects();
+      const sel = document.getElementById('groups-select');
+      if (sel) sel.value = selectedGid;
+    } else {
+      toast('指定されたグループが見つかりませんでした', 'error');
+    }
+  }
+
+  if ([3, 4, 5].includes(pcParam)) {
+    cfg.playerCount = pcParam;
+    // 順位点は localStorage の値を使う（人数が変わって長さが合わない場合だけ既定値に戻す）
+    if (cfg.rankPoints.length !== pcParam) cfg.rankPoints = [...RANK_DEFAULTS[pcParam]];
+  }
+
+  if (pidsParam) {
+    const ids   = pidsParam.split(',').map(s => s.trim()).filter(Boolean);
+    const valid = ids.filter(id => players.some(p => String(p.id) === id));
+    if (valid.length !== ids.length || ids.length !== cfg.playerCount) {
+      cfg.selectedPids = [];
+      toast('参加者を復元できませんでした。選び直してください', 'error');
+    } else {
+      cfg.selectedPids = valid;
+    }
+  }
+  saveCfg();
+}
+
+// 素点の入力欄までスクロールし、1人目にフォーカスする
+function focusScoreInput() {
+  const rows = document.getElementById('game-rows');
+  if (!rows) return;
+  requestAnimationFrame(() => {
+    rows.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const first = document.getElementById(`raw-${cfg.selectedPids[0]}`);
+    if (first) { try { first.focus({ preventScroll: true }); } catch { first.focus(); } }
+  });
 }
 
 function setToday() {

@@ -212,6 +212,7 @@ const CHART_COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4
 let S = { players:[], games:[], results:[], chips:[], memos:[], rankTab:'all' };
 let summaryGroups = [];
 let groupChart = null;
+let currentSummaryGroup = null;
 
 const _params = new URLSearchParams(location.search);
 const currentSeasonId = _params.get('season');
@@ -261,6 +262,13 @@ async function loadData() {
     else q = q.gte('date', DATA_START);
     return q;
   };
+  // groups は「同じ設定で結果入力」でグループを特定するために使う
+  const buildGroups = () => {
+    let q = sb.from('groups').select('*').order('id', { ascending: true });
+    if (currentSeasonId) q = q.eq('season_id', Number(currentSeasonId));
+    else q = q.is('season_id', null);
+    return q;
+  };
   let memosQ = sb.from('memos').select('*').order('created_at', { ascending:false }).limit(30);
   if (currentSeasonId) {
     // シーズン番号でメモの日付範囲を絞り込む
@@ -275,16 +283,18 @@ async function loadData() {
   } else {
     memosQ = memosQ.gte('created_at', DATA_START + 'T00:00:00.000Z'); // メインページ=現シーズン
   }
-  const [r1, games, chips, r4] = await Promise.all([
+  const [r1, games, chips, r4, r5] = await Promise.all([
     sb.from('players').select('*').order('name'),
     fetchAllRows(buildGames),
     fetchAllRows(buildChips),
-    memosQ
+    memosQ,
+    buildGroups()
   ]);
   S.players = r1.data || [];
   S.games   = games;
   S.chips   = chips;
   S.memos   = r4.data || [];
+  S.groups  = r5.data || [];
   if (S.games.length > 0) {
     const ids = S.games.map(g => g.id);
     S.results = await fetchAllRows(() =>
@@ -344,31 +354,14 @@ function onGroupSelectChange() {
 
 function renderGroupSummary(group) {
   const { date, groupName } = group;
+  currentSummaryGroup = group;
   const dayGames = S.games.filter(g => g.date === date && (g.group_name || '') === groupName);
-  const gameIds  = new Set(dayGames.map(g => g.id));
-  const dayResults = S.results.filter(r => gameIds.has(r.game_id));
 
+  // 収支の計算ルールは stats.js に一本化（history.html の日別カードと同じ）
+  const sorted = mjComputeGroupTotals(S, date, groupName);
   const playerTotals = {};
-  dayResults.forEach(r => {
-    if (!playerTotals[r.player_id]) {
-      const p = S.players.find(x => x.id === r.player_id);
-      playerTotals[r.player_id] = { name: p ? p.name : '?', pt: 0 };
-    }
-    playerTotals[r.player_id].pt += r.total_pt;
-  });
+  sorted.forEach(r => { playerTotals[r.player_id] = { name: r.name, pt: r.pt }; });
 
-  // chip_pt を収支に加算（同じグループのみ）
-  S.chips.filter(c => c.date === date && (c.group_name || '') === groupName).forEach(c => {
-    const pid = String(c.player_id);
-    const existKey = Object.keys(playerTotals).find(k => String(k) === pid) || pid;
-    if (!playerTotals[existKey]) {
-      const p = S.players.find(x => String(x.id) === pid);
-      playerTotals[existKey] = { name: p ? p.name : '?', pt: 0 };
-    }
-    playerTotals[existKey].pt += (c.chip_pt || 0);
-  });
-
-  const sorted = Object.values(playerTotals).sort((a, b) => b.pt - a.pt);
   const el = document.getElementById('group-summary-content');
 
   if (!sorted.length) {
@@ -398,14 +391,47 @@ function renderGroupSummary(group) {
         <span class="settle-amt">${t.amount.toLocaleString()} pt</span>
       </div>`).join('');
 
+  // 同じ日・同じメンバーで続けて打つための導線（groups行が特定できて対局がある場合のみ）
+  const sameSetupHTML = (dayGames.length && findGroupRow(date, groupName))
+    ? `<button class="btn btn-past" style="margin-top:12px" onclick="goInputSameSetup()">＋ 同じ設定で結果入力</button>`
+    : '';
+
   el.innerHTML = `
     ${balHTML}
+    ${sameSetupHTML}
     <hr class="divider">
     <div class="section-sub">最小精算（${txns.length}回）</div>
     ${txnHTML}
   `;
 
   renderGroupChart(dayGames, playerTotals, date, groupName);
+}
+
+// date + group_name から groups テーブルの行を探す
+function findGroupRow(date, groupName) {
+  return (S.groups || []).find(g => g.date === date && (g.name || '') === (groupName || ''));
+}
+
+// 表示中のグループの「最後の対局」と同じ人数・同じ参加者で入力画面を開く
+function goInputSameSetup() {
+  const g = currentSummaryGroup;
+  if (!g) return;
+  const row = findGroupRow(g.date, g.groupName);
+  const dayGames = S.games.filter(x => x.date === g.date && (x.group_name || '') === g.groupName && !isCarryover(x));
+  if (!row || !dayGames.length) { toast('グループを特定できませんでした', 'error'); return; }
+
+  const last = [...dayGames].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || a.id - b.id).pop();
+  const pids = S.results.filter(r => r.game_id === last.id).sort((a, b) => a.id - b.id).map(r => r.player_id);
+  if (!pids.length) { toast('参加者を取得できませんでした', 'error'); return; }
+
+  const q = new URLSearchParams();
+  if (currentSeasonId) q.set('season', currentSeasonId);
+  q.set('gid', String(row.id));
+  q.set('pids', pids.join(','));
+  q.set('pc', String(last.player_count));
+  q.set('focus', 'score');
+  // pids のカンマはそのまま読める形にしておく（%2C でも動くが見づらい）
+  location.href = `input.html?${q.toString().replace(/%2C/g, ',')}`;
 }
 
 // 同一グループのチップを提出単位でグループ化（10秒以内のレコードを同一バッチとみなす）
