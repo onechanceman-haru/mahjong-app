@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="stats.js"></script>
+  <script src="scoring.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
@@ -717,7 +718,7 @@ async function loadHistory() {
                 <div class="result-name">${esc(p ? p.name : '?')}</div>
                 <div class="result-pts">
                   <div class="result-total ${cls}">${str} pt</div>
-                  <div class="result-sub">${r.score_pt >= 0 ? '+' : ''}${r.score_pt} + ${r.bonus_pt >= 0 ? '+' : ''}${r.bonus_pt}</div>
+                  <div class="result-sub">素点 ${mjScorePtToRaw(r.score_pt).toLocaleString()} · ${r.score_pt >= 0 ? '+' : ''}${r.score_pt} + ${r.bonus_pt >= 0 ? '+' : ''}${r.bonus_pt}</div>
                 </div>
               </div>`;
             }).join('')}
@@ -768,57 +769,154 @@ function startEditGame(gid) {
   const gResults = histAllResults.filter(r => String(r.game_id) === String(gid)).sort((a, b) => a.rank - b.rank);
   const viewEl   = document.getElementById(`results-view-${gid}`);
 
+  // 保存済みの score_pt から素点を復元する（素点 = 35,000 + score_pt × 10）
   const rowData = gResults.map(r => {
     const p = S.players.find(x => String(x.id) === String(r.player_id));
-    return { resultId: r.id, name: p ? p.name : '?', scorePt: r.score_pt, bonusPt: r.bonus_pt, totalPt: r.total_pt };
+    return {
+      resultId: r.id, playerId: r.player_id, name: p ? p.name : '?',
+      scorePt: r.score_pt, bonusPt: r.bonus_pt, totalPt: r.total_pt,
+      rank: r.rank, raw: mjScorePtToRaw(r.score_pt)
+    };
   });
 
+  // 順位点はDBに残っていないため、保存済み bonus_pt を rank 順に並べて復元する。
+  // 同点を含む対局は一意に決められないので、確認用の入力欄を出す（推測で保存しない）
+  const rec = mjRecoverRankPoints(gResults);
+  const n = rowData.length;
+  const defs = MJ_RANK_DEFAULTS[n] || MJ_RANK_DEFAULTS[4];
+  const rankPoints = rec.ambiguous ? [...defs] : rec.rankPoints;
+  const labels = ['1位', '2位', '3位', '4位', '5位'];
+
+  const rankPtHTML = rec.ambiguous
+    ? `<div style="margin-bottom:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px">
+        <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:8px">⚠️ この対局は同点を含むため、保存されている順位点から元の設定を一意に復元できません。順位点を確認してください。</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${rankPoints.map((v, i) => `<span style="font-size:12px;color:var(--muted)">${labels[i]}</span>
+            <input type="text" class="edit-input edit-rankpt-${gid}" value="${v}" style="width:66px"
+                   oninput="updateEditSum('${gid}')">`).join('')}
+        </div>
+        <div id="edit-rankpt-sum-${gid}" style="font-size:12px;font-weight:700;margin-top:8px"></div>
+      </div>`
+    : `<div style="margin-bottom:10px;padding:8px 10px;background:#f9fafb;border-radius:8px;font-size:12px;color:var(--muted)">
+        復元した順位点：${rankPoints.map((v, i) => `${labels[i]} ${v >= 0 ? '+' : ''}${v.toLocaleString()}`).join(' / ')}
+        ${rankPoints.map(v => `<input type="hidden" class="edit-rankpt-${gid}" value="${v}">`).join('')}
+      </div>`;
+
   viewEl.innerHTML =
-  `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:#f9fafb;border-radius:8px">修正後の素点を入力（順位点は自動で再計算されます）</div>` +
+  `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:#f9fafb;border-radius:8px">修正後の素点を入力（100点単位・マイナスは「-」を先頭に・順位と順位点は自動で再計算されます）</div>` +
+  rankPtHTML +
   rowData.map((r, i) => {
-    const beforeStr = (r.scorePt >= 0 ? '+' : '') + r.scorePt.toLocaleString() + ' pt（素点）';
     return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${esc(r.name)}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--muted)">修正前：${esc(beforeStr)}</span>
+        <span style="font-size:12px;color:var(--muted)">修正前：${r.raw.toLocaleString()}点</span>
         <span style="color:var(--dim)">→</span>
-        <span style="font-size:12px;color:var(--muted)">修正後：</span>
-        <input type="text" class="edit-input" id="edit-score-${gid}-${i}" value="${r.scorePt}">
-        <span style="font-size:12px;color:var(--muted)">pt</span>
+        <input type="text" inputmode="numeric" class="edit-input edit-raw-${gid}" id="edit-raw-${gid}-${i}"
+               value="${r.raw / 100}" style="width:84px" oninput="updateEditSum('${gid}')">
+        <span style="font-size:13px;font-weight:900;color:var(--muted)">00</span>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px" id="edit-live-${gid}-${i}">—</div>
     </div>`;
   }).join('') +
-  `<div style="margin-top:10px;display:flex;gap:8px">
-    <button class="btn btn-primary btn-sm" onclick="saveEditGame('${gid}')">保存</button>
+  `<div id="edit-sum-${gid}" style="font-size:13px;font-weight:700;margin-top:10px;padding:8px 10px;background:#f9fafb;border-radius:8px"></div>
+  <div style="margin-top:10px;display:flex;gap:8px">
+    <button class="btn btn-primary btn-sm" id="edit-save-${gid}" onclick="saveEditGame('${gid}')">保存</button>
     <button class="btn btn-outline btn-sm" onclick="loadHistory()">キャンセル</button>
   </div>`;
 
   viewEl.dataset.rowData = JSON.stringify(rowData);
+  viewEl.dataset.ambiguous = rec.ambiguous ? '1' : '';
+  updateEditSum(gid);
+}
+
+// 編集中の素点を読み取る（入力欄は100点単位。マイナスは「-」を先頭に入力）
+function readEditRaws(gid) {
+  return [...document.querySelectorAll(`.edit-raw-${gid}`)].map(inp => {
+    const t = inp.value.trim();
+    if (t === '') return null;
+    const v = parseInt(t.replace(/[^0-9-]/g, ''), 10);
+    return Number.isFinite(v) ? v * 100 : null;
+  });
+}
+
+function readEditRankPoints(gid) {
+  return [...document.querySelectorAll(`.edit-rankpt-${gid}`)].map(inp => parseInt(inp.value, 10) || 0);
+}
+
+// 編集中の合計チェックと再計算プレビュー
+function updateEditSum(gid) {
+  const viewEl = document.getElementById(`results-view-${gid}`);
+  if (!viewEl) return;
+  const rowData = JSON.parse(viewEl.dataset.rowData || '[]');
+  const raws = readEditRaws(gid);
+  const rankPoints = readEditRankPoints(gid);
+  const n = rowData.length;
+
+  const v = mjValidateRawScores(raws.map((raw, i) => ({ player_id: rowData[i].playerId, raw })), n);
+  const rankSum = rankPoints.reduce((s, x) => s + x, 0);
+
+  const sumEl = document.getElementById(`edit-sum-${gid}`);
+  if (sumEl) {
+    if (!v.complete) {
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--warning)">残り ${v.missing} 名</span>`;
+    } else if (v.ok) {
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--success)">✅ 一致</span>`;
+    } else {
+      sumEl.innerHTML = `入力合計 ${v.sum.toLocaleString()} / ${v.required.toLocaleString()}　<span style="color:var(--danger)">❌ 残り ${v.diff >= 0 ? '+' : ''}${v.diff.toLocaleString()}点</span>`;
+    }
+  }
+
+  const rpSumEl = document.getElementById(`edit-rankpt-sum-${gid}`);
+  if (rpSumEl) {
+    rpSumEl.textContent = `順位点合計：${rankSum >= 0 ? '+' : ''}${rankSum.toLocaleString()} pt`;
+    rpSumEl.style.color = rankSum === 0 ? 'var(--success)' : 'var(--danger)';
+  }
+
+  // 各行のプレビュー（全員入力済みのときだけ順位・順位点が確定する）
+  const calc = v.complete
+    ? calcGameResult(raws.map((raw, i) => ({ player_id: rowData[i].playerId, raw })), rankPoints) : null;
+  rowData.forEach((r, i) => {
+    const live = document.getElementById(`edit-live-${gid}-${i}`);
+    if (!live) return;
+    if (raws[i] === null) { live.textContent = '—'; return; }
+    const sgn = x => (x >= 0 ? '+' : '') + x.toLocaleString();
+    if (!calc) { live.textContent = `${sgn(mjRawToScorePt(raws[i]))} pt`; return; }
+    const c = calc[i];
+    live.textContent = `${c.rank}位 · ${sgn(c.score_pt)} pt · 順位点 ${sgn(c.bonus_pt)} · 合計 ${sgn(c.total_pt)} pt`;
+  });
+
+  const saveBtn = document.getElementById(`edit-save-${gid}`);
+  if (saveBtn) saveBtn.disabled = !(v.ok && rankSum === 0);
 }
 
 async function saveEditGame(gid) {
   const viewEl  = document.getElementById(`results-view-${gid}`);
   const rowData = JSON.parse(viewEl.dataset.rowData || '[]');
-  const inputs  = viewEl.querySelectorAll('.edit-input');
+  const raws    = readEditRaws(gid);
+  const rankPoints = readEditRankPoints(gid);
+  const n = rowData.length;
 
-  const updates = [];
-  inputs.forEach((inp, i) => {
-    const newScore = parseInt(inp.value);
-    if (!isNaN(newScore)) {
-      updates.push({ resultId: rowData[i].resultId, scorePt: newScore, bonusPt: rowData[i].bonusPt });
-    }
-  });
+  const rawScores = raws.map((raw, i) => ({ player_id: rowData[i].playerId, raw }));
+  const v = mjValidateRawScores(rawScores, n);
+  if (!v.complete) { toast('全員の素点を入力してください', 'error'); return; }
+  if (!v.ok) {
+    toast(`合計が ${v.sum.toLocaleString()}点です（目標 ${v.required.toLocaleString()}点）`, 'error'); return;
+  }
+  const rankSum = rankPoints.reduce((s, x) => s + x, 0);
+  if (rankSum !== 0) { toast('順位点の合計が0ではありません', 'error'); return; }
 
-  const sum = updates.reduce((s, u) => s + u.scorePt, 0);
-  if (sum !== 0) { toast(`差分合計が ${sum >= 0 ? '+' : ''}${sum} pt ずれています`, 'error'); return; }
+  // 順位・順位点・合計を再計算する（保存形式は従来どおり）
+  const calc = calcGameResult(rawScores, rankPoints);
 
   const errors = [];
-  for (const upd of updates) {
-    const newTotal = upd.scorePt + upd.bonusPt;
+  for (let i = 0; i < calc.length; i++) {
+    const c = calc[i];
     const { error } = await sb.from('game_results').update({
-      score_pt: upd.scorePt,
-      total_pt: newTotal
-    }).eq('id', upd.resultId);
+      rank:     c.rank,
+      score_pt: c.score_pt,
+      bonus_pt: c.bonus_pt,
+      total_pt: c.total_pt
+    }).eq('id', rowData[i].resultId);
     if (error) errors.push(error);
   }
 

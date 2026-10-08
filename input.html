@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="scoring.js"></script>
   <style>
     :root {
       --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
@@ -68,12 +69,21 @@
     .rank-pt-suffix { font-size:12px; color:var(--dim); flex-shrink:0; }
     .rank-sum-display { font-size:13px; font-weight:700; margin-top:8px; padding:6px 10px; border-radius:8px; background:#f9fafb; }
 
-    .game-row { display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .game-row { padding:10px 0; border-bottom:1px solid var(--border); }
     .game-row:last-child { border-bottom:none; }
+    .game-row-main { display:flex; align-items:center; gap:8px; }
     .game-row-name { font-size:15px; font-weight:700; min-width:68px; flex-shrink:0; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .game-row-input { flex:1; min-width:0; }
-    .game-row-input .form-input { padding:10px 12px; font-size:15px; }
+    .game-row-input .form-input { padding:10px 12px; font-size:15px; text-align:right; }
     .game-row-suffix { font-size:13px; color:var(--muted); flex-shrink:0; }
+    /* 入力欄の右に固定表示する「00」（100点単位で入力するため） */
+    .game-row-00 { font-size:15px; font-weight:900; color:var(--muted); flex-shrink:0; background:#f3f4f6; border:1.5px solid var(--border); border-radius:8px; padding:9px 8px; line-height:1; letter-spacing:0.05em; }
+    /* 入力中のリアルタイム表示（順位・差分pt・順位点・合計pt） */
+    .game-row-live { font-size:11px; color:var(--muted); margin-top:5px; padding-left:76px; min-height:16px; line-height:1.5; }
+    .game-row-live .live-rank { font-weight:900; color:var(--text); }
+    .game-row-live .live-total { font-weight:900; }
+    .score-summary-target { font-size:12px; color:var(--muted); font-weight:600; margin-top:2px; }
+    .btn-autofill { margin-top:10px; }
 
     .score-summary { padding:14px; border-radius:12px; background:#f9fafb; border:1.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
     .score-label { font-size:13px; font-weight:600; color:var(--muted); }
@@ -212,10 +222,11 @@
       <div id="base-label" class="hint" style="margin-bottom:12px">参加者を選択すると入力欄が表示されます</div>
       <div id="game-rows"></div>
       <div class="score-summary">
-        <span class="score-label">差分合計</span>
-        <span class="score-val warn" id="diff-sum">未入力</span>
+        <span class="score-label">入力合計</span>
+        <span class="score-val warn" id="raw-sum">未入力</span>
       </div>
-      <div class="score-hint" id="diff-hint">参加者を選択してください</div>
+      <div class="score-hint" id="raw-hint">参加者を選択してください</div>
+      <button class="btn btn-outline btn-autofill" id="autofill-btn" style="display:none" onclick="autoFillLast()">⚡ 残りを自動入力</button>
       <div style="margin-top:14px">
         <button class="btn btn-success" id="submit-game-btn" onclick="submitGame()">✅ 対局登録</button>
       </div>
@@ -284,12 +295,8 @@ const { createClient } = window.supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const currentSeasonId = new URLSearchParams(location.search).get('season');
 
-const RANK_DEFAULTS = {
-  3: [2000, 0, -2000],
-  4: [2000, 1000, -1000, -2000],
-  5: [3000, 1500, 0, -1500, -3000]
-};
-const BASE_POINTS = { 3: '35,000', 4: '25,000', 5: '25,000' };
+// 順位点の既定値は scoring.js と共有（値は従来どおり）
+const RANK_DEFAULTS = MJ_RANK_DEFAULTS;
 const SETTINGS_KEY = currentSeasonId ? `mj_cfg_v1_s${currentSeasonId}` : 'mj_cfg_v1';
 
 let players = [];
@@ -298,12 +305,21 @@ let selectedGid = null;
 let selectedChipGid = null;
 let selectedChipPids = [];
 
+// 保存済み設定を読み込む。差分入力時代の古い形式や壊れた値が残っていても落ちないよう検証する
 function loadCfg() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-    if (saved) return saved;
-  } catch {}
-  return null;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch {}
+  if (!saved || typeof saved !== 'object') return null;
+
+  const pc = [3, 4, 5].includes(Number(saved.playerCount)) ? Number(saved.playerCount) : 4;
+  const defs = RANK_DEFAULTS[pc];
+  let rankPoints = Array.isArray(saved.rankPoints) ? saved.rankPoints.map(v => parseInt(v)) : [];
+  // 人数と長さが合わない／数値でない値が混じっている場合は既定値に戻す
+  if (rankPoints.length !== pc || rankPoints.some(v => !Number.isFinite(v))) rankPoints = [...defs];
+  const selectedPids = Array.isArray(saved.selectedPids)
+    ? saved.selectedPids.map(String).slice(0, pc) : [];
+
+  return { playerCount: pc, rankPoints, selectedPids };
 }
 function saveCfg() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ playerCount: cfg.playerCount, rankPoints: cfg.rankPoints, selectedPids: cfg.selectedPids })); } catch {}
@@ -514,10 +530,8 @@ function updateRankSum() {
     el.style.color = sum === 0 ? 'var(--success)' : 'var(--danger)';
   }
 
-  const btn = document.getElementById('submit-game-btn');
-  if (btn && btn.style.display !== 'none') {
-    btn.disabled = (sum !== 0);
-  }
+  // 順位点を変えると各行の順位点・合計も変わるため、素点側の表示もまとめて更新する
+  updateRawSum();
 }
 
 // ── Player Selection ──
@@ -554,79 +568,160 @@ function updateSelectedCount() {
   document.getElementById('selected-count').textContent = `${cfg.selectedPids.length}/${cfg.playerCount}名 選択中`;
 }
 
-// ── Game Rows ──
+// ── Game Rows（素点入力・100点単位） ──
 function buildGameRows() {
   const el       = document.getElementById('game-rows');
   const baseHint = document.getElementById('base-label');
   if (!cfg.selectedPids.length) {
     el.innerHTML = '';
     baseHint.textContent = '参加者を選択すると入力欄が表示されます';
-    updateDiffSum();
+    updateRawSum();
     return;
   }
-  const base = BASE_POINTS[cfg.playerCount] || '25,000';
-  baseHint.textContent = `基準点 ${base}pt からの差分を入力（合計が0になるよう入力）`;
+  baseHint.textContent = '素点を入力（100点単位）';
   el.innerHTML = cfg.selectedPids.map(pid => {
     const player = players.find(p => String(p.id) === String(pid));
     return `<div class="game-row">
-      <div class="game-row-name">${esc(player ? player.name : pid)}</div>
-      <button type="button" class="sign-btn positive" id="sign-${pid}" onclick="toggleDiffSign('${pid}')">＋</button>
-      <div class="game-row-input">
-        <input type="text" inputmode="numeric" pattern="[0-9]*" class="form-input"
-               placeholder="0" id="diff-${pid}" oninput="updateDiffSum()"
-               autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <div class="game-row-main">
+        <div class="game-row-name">${esc(player ? player.name : pid)}</div>
+        <button type="button" class="sign-btn positive" id="sign-${pid}" onclick="toggleRawSign('${pid}')">＋</button>
+        <div class="game-row-input">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="form-input"
+                 placeholder="350" id="raw-${pid}" oninput="updateRawSum()"
+                 autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <span class="game-row-00">00</span>
       </div>
-      <span class="game-row-suffix">pt</span>
+      <div class="game-row-live" id="live-${pid}">—</div>
     </div>`;
   }).join('');
-  document.getElementById('after-submit').style.display = 'none';
+  const after = document.getElementById('after-submit');
+  if (after) after.style.display = 'none';
   document.getElementById('submit-game-btn').style.display = 'flex';
   updateRankSum();
-  updateDiffSum();
+  updateRawSum();
 }
 
-function updateDiffSum() {
-  let sum = 0, filled = 0;
-  cfg.selectedPids.forEach(pid => {
-    const v = getDiffValue(pid);
-    if (v !== null) { sum += v; filled++; }
-  });
-  const el   = document.getElementById('diff-sum');
-  const hint = document.getElementById('diff-hint');
+// 入力中の素点を集めて返す（未入力は raw:null）
+function collectRawScores() {
+  return cfg.selectedPids.map(pid => ({ player_id: pid, raw: getRawValue(pid) }));
+}
+
+function updateRawSum() {
+  const el   = document.getElementById('raw-sum');
+  const hint = document.getElementById('raw-hint');
+  const auto = document.getElementById('autofill-btn');
   const n    = cfg.selectedPids.length;
+
   if (n === 0) {
     el.textContent = '未入力'; el.className = 'score-val warn';
-    hint.textContent = '参加者を選択してください'; return;
+    hint.textContent = '参加者を選択してください';
+    auto.style.display = 'none';
+    updateSubmitState();
+    return;
   }
-  el.textContent = filled === 0 ? '未入力' : (sum >= 0 ? '+' : '') + sum.toLocaleString() + ' pt';
-  if (filled < n) {
+
+  const rawScores = collectRawScores();
+  const v = mjValidateRawScores(rawScores, n);
+
+  el.innerHTML = `${v.sum.toLocaleString()} <span class="score-label">/ ${v.required.toLocaleString()}</span>`;
+  if (!v.complete) {
     el.className = 'score-val warn';
-    hint.textContent = `残り ${n - filled} 名を入力してください`;
-  } else if (sum === 0) {
+    hint.textContent = `残り ${v.missing} 名を入力してください（目標 ${v.required.toLocaleString()}点）`;
+  } else if (v.ok) {
     el.className = 'score-val ok';
-    hint.textContent = '✅ 合計が0です。登録できます！';
+    hint.textContent = '✅ 合計が一致しました。登録できます！';
   } else {
     el.className = 'score-val error';
-    hint.textContent = `❌ 合計が ${sum >= 0 ? '+' : ''}${sum.toLocaleString()} pt ずれています`;
+    hint.textContent = `❌ 残り ${v.diff >= 0 ? '+' : ''}${v.diff.toLocaleString()}点`;
   }
+
+  // 未入力が1人だけなら自動入力を出す（タップ数を減らす）
+  auto.style.display = v.missing === 1 ? 'flex' : 'none';
+
+  renderLiveRows(rawScores);
+  updateSubmitState();
 }
 
-function toggleDiffSign(pid) {
+// 各行に 順位 / 差分pt / 順位点 / 合計pt をリアルタイム表示する
+function renderLiveRows(rawScores) {
+  const filled = rawScores.filter(r => r.raw !== null);
+  // 全員入力済みのときだけ順位と順位点が確定する
+  const calc = filled.length === rawScores.length && rawScores.length > 0
+    ? calcGameResult(rawScores, cfg.rankPoints) : null;
+
+  rawScores.forEach((r, i) => {
+    const live = document.getElementById(`live-${r.player_id}`);
+    if (!live) return;
+    if (r.raw === null) { live.textContent = '—'; return; }
+    const scorePt = mjRawToScorePt(r.raw);
+    const sgn = v => (v >= 0 ? '+' : '') + v.toLocaleString();
+    if (!calc) {
+      live.innerHTML = `${sgn(scorePt)} pt`;
+      return;
+    }
+    const c = calc[i];
+    const cls = c.total_pt > 0 ? 'positive' : c.total_pt < 0 ? 'negative' : 'neutral';
+    live.innerHTML = `<span class="live-rank">${c.rank}位</span> · ${sgn(c.score_pt)} pt · 順位点 ${sgn(c.bonus_pt)}` +
+      ` · <span class="live-total ${cls}">合計 ${sgn(c.total_pt)} pt</span>`;
+  });
+}
+
+// 未入力が1人のとき、合計が目標になる素点を自動で入れる
+function autoFillLast() {
+  const rawScores = collectRawScores();
+  const v = mjValidateRawScores(rawScores, cfg.selectedPids.length);
+  if (v.missing !== 1) return;
+  const target = rawScores.find(r => r.raw === null);
+  const rest = v.required - v.sum;
+  if (rest % 100 !== 0) { toast('100点単位になりません。入力を見直してください', 'error'); return; }
+  setRawValue(target.player_id, rest);
+  updateRawSum();
+}
+
+function toggleRawSign(pid) {
   const btn = document.getElementById(`sign-${pid}`);
   if (!btn) return;
   const isPos = btn.classList.contains('positive');
   btn.classList.toggle('positive', !isPos);
   btn.classList.toggle('negative', isPos);
   btn.textContent = isPos ? '－' : '＋';
-  updateDiffSum();
+  updateRawSum();
 }
 
-function getDiffValue(pid) {
-  const inp = document.getElementById(`diff-${pid}`);
+// 入力欄は100点単位。素点（点）を返す。未入力は null
+function getRawValue(pid) {
+  const inp = document.getElementById(`raw-${pid}`);
   const btn = document.getElementById(`sign-${pid}`);
   if (!inp || inp.value === '') return null;
-  const abs = parseInt(inp.value.replace(/[^0-9]/g, '')) || 0;
-  return btn && btn.classList.contains('negative') ? -abs : abs;
+  const abs = parseInt(inp.value.replace(/[^0-9]/g, ''));
+  if (!Number.isFinite(abs)) return null;
+  const signed = btn && btn.classList.contains('negative') ? -abs : abs;
+  return signed * 100;
+}
+
+// 素点（点）を入力欄と±ボタンに反映する
+function setRawValue(pid, raw) {
+  const inp = document.getElementById(`raw-${pid}`);
+  const btn = document.getElementById(`sign-${pid}`);
+  if (!inp) return;
+  inp.value = String(Math.abs(raw) / 100);
+  if (btn) {
+    const neg = raw < 0;
+    btn.classList.toggle('negative', neg);
+    btn.classList.toggle('positive', !neg);
+    btn.textContent = neg ? '－' : '＋';
+  }
+}
+
+// 登録ボタンの活性は「順位点合計が0」かつ「素点合計が目標と一致」で決める
+function updateSubmitState() {
+  const btn = document.getElementById('submit-game-btn');
+  if (!btn || btn.style.display === 'none') return;
+  const n = cfg.selectedPids.length;
+  const rankOk = cfg.rankPoints.slice(0, n).reduce((s, v) => s + (parseInt(v) || 0), 0) === 0;
+  const rawOk  = n > 0 && mjValidateRawScores(collectRawScores(), n).ok;
+  btn.disabled = !(rankOk && rawOk);
 }
 
 async function submitGame() {
@@ -644,42 +739,16 @@ async function submitGame() {
   });
   if (rankSum !== 0) { toast('順位点の合計が0ではありません', 'error'); return; }
 
-  let sum = 0;
-  const entries = [];
-  for (const pid of cfg.selectedPids) {
-    const diff = getDiffValue(pid);
-    if (diff === null) { toast('全員の差分を入力してください', 'error'); return; }
-    sum += diff;
-    entries.push({ player_id: pid, diff });
-  }
-  if (sum !== 0) { toast(`合計が ${sum >= 0 ? '+' : ''}${sum} pt ずれています`, 'error'); return; }
-
-  const sorted = [...entries].sort((a, b) => b.diff - a.diff);
-  const rankMap = {};
-  for (let i = 0; i < sorted.length; i++) {
-    if (i > 0 && sorted[i].diff === sorted[i-1].diff) {
-      rankMap[sorted[i].player_id] = rankMap[sorted[i-1].player_id];
-    } else {
-      rankMap[sorted[i].player_id] = i + 1;
-    }
+  // 素点を集めて合計をチェック（3人=105,000 / 4人=140,000 / 5人=175,000）
+  const rawScores = collectRawScores();
+  const v = mjValidateRawScores(rawScores, cfg.playerCount);
+  if (!v.complete) { toast('全員の素点を入力してください', 'error'); return; }
+  if (!v.ok) {
+    toast(`合計が ${v.sum.toLocaleString()}点です（目標 ${v.required.toLocaleString()}点）`, 'error'); return;
   }
 
-  const rankBonuses = {};
-  const uniqueRanks = [...new Set(Object.values(rankMap))].sort((a, b) => a - b);
-  uniqueRanks.forEach(r => {
-    const tied   = entries.filter(e => rankMap[e.player_id] === r);
-    const idxArr = Array.from({length: tied.length}, (_, j) => r - 1 + j);
-    const total  = idxArr.reduce((s, idx) => s + (cfg.rankPoints[idx] || 0), 0);
-    // 同点は該当順位の順位点を分け合う。端数が出ないよう10pt単位で配り、
-    // 合計は total のまま保つ（対局全体の収支を0に保つため）
-    const n      = tied.length;
-    const base   = Math.floor(total / n / 10) * 10;
-    const shares = Array(n).fill(base);
-    let rest     = total - base * n;
-    for (let i = 0; rest >= 10; i++, rest -= 10) shares[i % n] += 10;
-    if (rest !== 0) shares[0] += rest; // 順位点自体が10の倍数でない場合のみ
-    tied.forEach((e, i) => { rankBonuses[e.player_id] = shares[i]; });
-  });
+  // 順位・順位点・保存用の値は scoring.js の calcGameResult で計算する
+  const calc = calcGameResult(rawScores, cfg.rankPoints);
 
   const btn = document.getElementById('submit-game-btn');
   btn.disabled = true; btn.textContent = '登録中...';
@@ -696,13 +765,14 @@ async function submitGame() {
     toast('登録に失敗しました', 'error'); return;
   }
 
-  const results = entries.map(e => ({
+  // 保存形式は従来どおり（score_pt / bonus_pt / total_pt / rank）
+  const results = calc.map(c => ({
     game_id:   gameData.id,
-    player_id: e.player_id,
-    rank:      rankMap[e.player_id],
-    score_pt:  e.diff,
-    bonus_pt:  rankBonuses[e.player_id] || 0,
-    total_pt:  e.diff + (rankBonuses[e.player_id] || 0)
+    player_id: c.player_id,
+    rank:      c.rank,
+    score_pt:  c.score_pt,
+    bonus_pt:  c.bonus_pt,
+    total_pt:  c.total_pt
   }));
 
   const { error: resErr } = await sb.from('game_results').insert(results);
@@ -720,17 +790,18 @@ async function submitGame() {
 }
 
 function continueInput() {
-  document.getElementById('after-submit').style.display = 'none';
+  const after = document.getElementById('after-submit');
+  if (after) after.style.display = 'none';
   const btn = document.getElementById('submit-game-btn');
   btn.style.display = 'flex';
   cfg.selectedPids.forEach(pid => {
-    const inp = document.getElementById(`diff-${pid}`);
+    const inp = document.getElementById(`raw-${pid}`);
     if (inp) inp.value = '';
-    const btn = document.getElementById(`sign-${pid}`);
-    if (btn) { btn.classList.remove('negative'); btn.classList.add('positive'); btn.textContent = '＋'; }
+    const sign = document.getElementById(`sign-${pid}`);
+    if (sign) { sign.classList.remove('negative'); sign.classList.add('positive'); sign.textContent = '＋'; }
   });
   updateRankSum();
-  updateDiffSum();
+  updateRawSum();
   document.getElementById('game-rows').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
