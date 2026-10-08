@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="stats.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
@@ -311,20 +312,8 @@ function setDefaultDates() {
   ['hist-to','g2-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=today; });
 }
 
-// Supabaseは1リクエスト最大1000件までしか返さないため、.range()で全件をページング取得する
-async function fetchAllRows(build) {
-  const PAGE = 1000;
-  let from = 0, all = [];
-  for (;;) {
-    const { data, error } = await build().range(from, from + PAGE - 1);
-    if (error) { console.error('fetchAllRows error:', error); throw error; }
-    if (!data || !data.length) break;
-    all = all.concat(data);
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  return all;
-}
+// ページング取得は stats.js の共通実装を使う
+const fetchAllRows = mjFetchAllRows;
 
 async function loadData() {
   const buildGames = () => {
@@ -370,34 +359,12 @@ function switchStatTab(el, tab) {
 }
 
 // ── Stats ──
-const CARRYOVER_DATE = '1900-01-01';
-function isCarryover(g) { return g && g.date === CARRYOVER_DATE; }
+const CARRYOVER_DATE = MJ_CARRYOVER_DATE;
+const isCarryover = mjIsCarryover;
 
+// 集計ルールは stats.js に一本化（index.html / past.html と同じ計算）
 function computeStats(pcFilter) {
-  const isAll = (pcFilter === null);
-  // 総合タブ: 引継ぎ含む全ゲーム / 3/4/5タブ: 引継ぎ除く対象人数ゲームのみ
-  const gameSet = new Set(S.games.filter(g => {
-    if (isCarryover(g)) return isAll;
-    return isAll || g.player_count === pcFilter;
-  }).map(g => g.id));
-  const map = {};
-  S.players.forEach(p => { map[p.id] = { id:p.id, name:p.name, games:0, totalPt:0, rankSum:0, r1:0, r2:0, r3:0, r4:0, r5:0 }; });
-  S.results.filter(r => gameSet.has(r.game_id)).forEach(r => {
-    const s = map[r.player_id]; if (!s) return;
-    const g = S.games.find(x => x.id === r.game_id);
-    if (!isCarryover(g)) { s.games++; s.rankSum += r.rank; }
-    s.totalPt += r.total_pt;
-    if (!isCarryover(g)) {
-      if (r.rank===1) s.r1++; else if (r.rank===2) s.r2++; else if (r.rank===3) s.r3++; else if (r.rank===4) s.r4++; else if (r.rank===5) s.r5++;
-    }
-  });
-  // 総合タブのみチップptを加算（ホームの総合タブと同じ計算）
-  if (isAll) {
-    S.chips.forEach(c => { const s = map[c.player_id]; if (s) s.totalPt += (c.chip_pt || 0); });
-  }
-  return Object.values(map)
-    .filter(s => s.games > 0 || (isAll && s.totalPt !== 0))
-    .sort((a, b) => b.totalPt - a.totalPt);
+  return mjComputeStats(S, pcFilter);
 }
 
 function renderStats() {
@@ -414,6 +381,9 @@ function renderStats() {
     const str  = (pts > 0 ? '+' : '') + pts.toLocaleString();
     const avg  = s.games ? (s.rankSum / s.games).toFixed(2) : '-';
     const pct  = n => s.games ? (n / s.games * 100).toFixed(0) + '%' : '0%';
+    // 総合タブは平均順位を表示しない（人数別タブのみ表示）。stat-itemはflex:1なので残りが等幅になる
+    const avgHTML = filter === null ? ''
+      : `<div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>`;
     const r4h  = filter === null || filter !== 3 ? `<div class="rank-dist-chip r4">4位 ${s.r4}(${pct(s.r4)})</div>` : '';
     const r5h  = filter === null || filter === 5 ? `<div class="rank-dist-chip r4">5位 ${s.r5}(${pct(s.r5)})</div>` : '';
     const rankDist = filter === null ? '' : `<div class="rank-dist">
@@ -432,7 +402,7 @@ function renderStats() {
       </div>
       <div class="stat-row">
         <div class="stat-item"><div class="stat-item-value">${s.games}</div><div class="stat-item-label">対局数</div></div>
-        <div class="stat-item"><div class="stat-item-value">${avg}</div><div class="stat-item-label">平均順位</div></div>
+        ${avgHTML}
         <div class="stat-item"><div class="stat-item-value">${s.games ? pct(s.r1) : '-'}</div><div class="stat-item-label">1位率</div></div>
       </div>
       ${rankDist}

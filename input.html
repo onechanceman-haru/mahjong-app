@@ -669,8 +669,16 @@ async function submitGame() {
   uniqueRanks.forEach(r => {
     const tied   = entries.filter(e => rankMap[e.player_id] === r);
     const idxArr = Array.from({length: tied.length}, (_, j) => r - 1 + j);
-    const avg    = Math.round(idxArr.reduce((s, idx) => s + (cfg.rankPoints[idx] || 0), 0) / tied.length);
-    tied.forEach(e => { rankBonuses[e.player_id] = avg; });
+    const total  = idxArr.reduce((s, idx) => s + (cfg.rankPoints[idx] || 0), 0);
+    // 同点は該当順位の順位点を分け合う。端数が出ないよう10pt単位で配り、
+    // 合計は total のまま保つ（対局全体の収支を0に保つため）
+    const n      = tied.length;
+    const base   = Math.floor(total / n / 10) * 10;
+    const shares = Array(n).fill(base);
+    let rest     = total - base * n;
+    for (let i = 0; rest >= 10; i++, rest -= 10) shares[i % n] += 10;
+    if (rest !== 0) shares[0] += rest; // 順位点自体が10の倍数でない場合のみ
+    tied.forEach((e, i) => { rankBonuses[e.player_id] = shares[i]; });
   });
 
   const btn = document.getElementById('submit-game-btn');
@@ -702,9 +710,13 @@ async function submitGame() {
 
   if (resErr) { toast('成績の登録に失敗しました', 'error'); return; }
 
-  // 登録完了 → そのシーズンのホームへ遷移
-  const dest = currentSeasonId ? `index.html?season=${currentSeasonId}` : 'index.html';
-  location.href = dest;
+  // 登録完了 → ホームの「グループ収支サマリー」を開いた状態で遷移
+  const q = new URLSearchParams();
+  if (currentSeasonId) q.set('season', currentSeasonId);
+  q.set('summary', '1');
+  q.set('date', cfg.groupDate);
+  q.set('group', cfg.groupName || '');
+  location.href = `index.html?${q.toString()}`;
 }
 
 function continueInput() {

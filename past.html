@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="stats.js"></script>
   <style>
     :root {
       --primary:#4f46e5; --primary-light:#818cf8; --primary-dark:#3730a3;
@@ -163,58 +164,32 @@ function renderSeasons() {
   }).join('');
 }
 
-// サーバーの1000件制限を回避してgame_resultsを全件取得
-async function fetchAllGameResults() {
-  const all = [];
-  const PAGE = 999;
-  let offset = 0;
-  while (true) {
-    const { data } = await sb.from('game_results')
-      .select('player_id, total_pt')
-      .range(offset, offset + PAGE);
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length <= PAGE) break;
-    offset += PAGE + 1;
-  }
-  return all;
-}
-
+// 全シーズン通算は「現存するシーズンに属するデータだけ」を
+// シーズン別（index.html の総合タブ）と同じルールで集計する
 async function loadAllRankings() {
-  const [{ data: playerData }, results, { data: chips }] = await Promise.all([
+  const [{ data: playerData }, { data: seasonData }] = await Promise.all([
     sb.from('players').select('id, name'),
-    fetchAllGameResults(),
-    sb.from('chip_settlements').select('player_id, chip_count, chip_pt').limit(9999)
+    sb.from('seasons').select('id')
+  ]);
+  // ページング取得は index.html と同じ order('id') + range() で行う
+  const [games, results, chips] = await Promise.all([
+    mjFetchAllRows(() => sb.from('games').select('*').order('id', { ascending: true })),
+    mjFetchAllRows(() => sb.from('game_results').select('*').order('id', { ascending: true })),
+    mjFetchAllRows(() => sb.from('chip_settlements').select('*').order('id', { ascending: true }))
   ]);
 
-  const playerMap = {};
-  (playerData || []).forEach(p => { playerMap[p.id] = p.name; });
+  const data = mjScopeToSeasons(
+    { players: playerData || [], games, results, chips },
+    (seasonData || []).map(s => s.id)
+  );
 
-  const scoreMap = {}, gameCountMap = {};
-  (results || []).forEach(r => {
-    const pid = r.player_id;
-    scoreMap[pid]     = (scoreMap[pid]     || 0) + (r.total_pt || 0);
-    gameCountMap[pid] = (gameCountMap[pid] || 0) + 1;
-  });
-
-  const chipMap = {};
-  (chips || []).forEach(c => {
-    const pid = c.player_id;
-    chipMap[pid]  = (chipMap[pid]  || 0) + (c.chip_count || 0);
-    // chip_ptがnullの場合はchip_count×300で計算
-    const pt = c.chip_pt !== null ? (c.chip_pt || 0) : (c.chip_count || 0) * 300;
-    scoreMap[pid] = (scoreMap[pid] || 0) + pt;
-  });
-
-  renderScoreRanking(playerMap, scoreMap, gameCountMap);
-  renderChipRanking(playerMap, chipMap);
+  renderScoreRanking(mjExcludeFromTotal(mjComputeStats(data, null)));
+  renderChipRanking(mjExcludeFromTotal(mjComputeChipCounts(data)));
 }
 
-function renderScoreRanking(playerMap, scoreMap, gameCountMap) {
+function renderScoreRanking(stats) {
   const el = document.getElementById('all-score-ranking');
-  const entries = Object.keys(scoreMap)
-    .map(pid => ({ name: playerMap[pid] || `ID:${pid}`, total: scoreMap[pid], games: gameCountMap[pid] || 0 }))
-    .sort((a, b) => b.total - a.total);
+  const entries = stats.map(s => ({ name: s.name, total: s.totalPt, games: s.games }));
 
   if (!entries.length) {
     el.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">📊</div>データがありません</div>'; return;
@@ -239,11 +214,9 @@ function renderScoreRanking(playerMap, scoreMap, gameCountMap) {
   }).join('');
 }
 
-function renderChipRanking(playerMap, chipMap) {
+function renderChipRanking(chipStats) {
   const el = document.getElementById('all-chip-ranking');
-  const entries = Object.keys(chipMap)
-    .map(pid => ({ name: playerMap[pid] || `ID:${pid}`, total: chipMap[pid] }))
-    .sort((a, b) => b.total - a.total);
+  const entries = chipStats.map(c => ({ name: c.name, total: c.chips }));
 
   if (!entries.length) {
     el.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">🎯</div>データがありません</div>'; return;
@@ -283,6 +256,12 @@ async function deleteSeason(id) {
   const { data: linked } = await sb.from('games').select('id').eq('season_id', id).limit(1);
   if (linked && linked.length > 0) {
     toast('対局データが紐付いているため削除できません', 'error'); return;
+  }
+
+  // チップ記録が残っていると通算集計から漏れるため、こちらも確認する
+  const { data: linkedChips } = await sb.from('chip_settlements').select('id').eq('season_id', id).limit(1);
+  if (linkedChips && linkedChips.length > 0) {
+    toast('チップデータが紐付いているため削除できません', 'error'); return;
   }
 
   const { error } = await sb.from('seasons').delete().eq('id', id);
