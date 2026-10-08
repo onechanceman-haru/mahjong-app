@@ -1,0 +1,84 @@
+/* ============================================================
+   B案「雀卓」— 羅紗の深緑をブランド色に
+   ブランド=緑 と プラス の色がかぶらないよう、
+   プラス=青 / マイナス=赤（「赤字」の感覚）にする
+   順位バッジは単色の塗り（金・銀・銅）
+   ============================================================ */
+:root {
+  /* 面と線 */
+  --bg:          #f2f4f1;  /* 緑みのオフホワイト */
+  --surface:     #ffffff;
+  --field:       #f8faf7;
+  --line:        #e0e5dd;
+  --line-strong: #878f83;  /* 部品の輪郭は3:1以上 */
+
+  /* 文字3段階 */
+  --ink:   #16201b;
+  --ink-2: #4e5a52;
+  --ink-3: #647068;
+
+  /* ブランド=アクセント（羅紗の深緑） */
+  --accent:      #1b5e45;
+  --accent-on:   #ffffff;
+  --accent-bg:   #eaf2ed;
+  --accent-line: #bcd4c6;
+
+  /* 収支: プラス=青 / マイナス=赤 */
+  --pos: #10519e;
+  --neg: #b4241c;
+
+  /* 警告はエラー・未入力だけに使う */
+  --warn:      #8a5a12;
+  --warn-ink:  #8a5a12;
+  --warn-bg:   #fbf6ea;
+  --warn-line: #e6d9ba;
+
+  /* 順位バッジ: 単色の塗り */
+  --r1-bg: #876411; --r1-fg: #ffffff; --r1-line: transparent;
+  --r2-bg: #626e66; --r2-fg: #ffffff; --r2-line: transparent;
+  --r3-bg: #8c5a2b; --r3-fg: #ffffff; --r3-line: transparent;
+
+  --toast-bg:  #16201b;
+  --toast-ink: #f4f7f2;
+
+  /* グラフ系列6色（ブランド緑・プラス青・マイナス赤を使わない） */
+  --s1: #6b4f9e; --s2: #a9741a; --s3: #2f7f7a;
+  --s4: #7a4b3a; --s5: #566274; --s6: #96386f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #111613;
+    --surface:     #1a211c;
+    --field:       #222a24;
+    --line:        #2e3831;
+    --line-strong: #6f7e72;
+
+    --ink:   #eff3ef;
+    --ink-2: #aab5ad;
+    --ink-3: #828d85;
+
+    --accent:      #74c29f;
+    --accent-on:   #0e1a14;
+    --accent-bg:   #1a2a22;
+    --accent-line: #2f4a3b;
+
+    --pos: #7eb3f0;
+    --neg: #f0877f;
+
+    --warn:      #e0b561;
+    --warn-ink:  #e0b561;
+    --warn-bg:   #2a2419;
+    --warn-line: #4a4027;
+
+    --r1-bg: #c79d33; --r1-fg: #1a1505; --r1-line: transparent;
+    --r2-bg: #9aa79e; --r2-fg: #141a16; --r2-line: transparent;
+    --r3-bg: #bc8350; --r3-fg: #1a1109; --r3-line: transparent;
+
+    --toast-bg:  #eff3ef;
+    --toast-ink: #16201b;
+
+    --s1: #b49ae0; --s2: #e0b561; --s3: #6fc4bd;
+    --s4: #bf9e7a; --s5: #9aa49e; --s6: #e091c0;
+  }
+}

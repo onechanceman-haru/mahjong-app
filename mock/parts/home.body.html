@@ -1,0 +1,116 @@
+<!-- ホーム: index.html と同じ並び順（ヘッダー / シーズン一覧 / グループ収支サマリー / 統計 / 通算ランキング / チップ枚数 / 掲示板） -->
+<header class="header">
+  <svg class="logo-mark" viewBox="0 0 18 24" aria-hidden="true">
+    <rect x="0.75" y="0.75" width="16.5" height="22.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="4.5" y="5" width="9" height="1.6" rx="0.8"/>
+    <rect x="4.5" y="9" width="9" height="1.6" rx="0.8"/>
+    <rect x="4.5" y="13" width="9" height="1.6" rx="0.8"/>
+  </svg>
+  <div class="logo-type">公大中麻雀倶楽部</div>
+  <div class="season-tag">シーズン3(令和8年度)</div>
+</header>
+
+<div class="container">
+
+  <a class="link" href="seasons.html">シーズン一覧
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18.6 7.6 17.2 12.8 12 7.6 6.8 9 5.4 15.6 12z"/></svg>
+  </a>
+
+  <!-- グループ収支サマリー -->
+  <div class="card">
+    <div class="card-header-row">
+      <div class="card-header">グループ収支サマリー</div>
+      <select class="select-inline">
+        <option>10/8 · A卓</option>
+        <option>10/6</option>
+      </select>
+    </div>
+
+    <div class="rows">
+      <div class="rw"><span class="rw-name grow">安部</span><span class="rw-val pos">+6,920</span></div>
+      <div class="rw"><span class="rw-name grow">井上</span><span class="rw-val pos">+3,670</span></div>
+      <div class="rw"><span class="rw-name grow">豊田</span><span class="rw-val pos">+2,540</span></div>
+      <div class="rw"><span class="rw-name grow">酒井</span><span class="rw-val neg">−13,130</span></div>
+    </div>
+
+    <hr class="hr">
+    <div class="sub-header">最小精算（2回）</div>
+    <div class="settle"><span class="settle-from">酒井</span><span class="settle-arrow">→</span><span class="settle-to grow">安部</span><span class="settle-amt">6,920 pt</span></div>
+    <div class="settle"><span class="settle-from">酒井</span><span class="settle-arrow">→</span><span class="settle-to grow">井上</span><span class="settle-amt">3,670 pt</span></div>
+
+    <div class="chart-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--s1)"></span>安部</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--s2)"></span>井上</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--s3)"></span>豊田</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--s4)"></span>酒井</span>
+    </div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 320 200" preserveAspectRatio="none" style="width:100%;height:100%">
+        <line x1="0" y1="120" x2="320" y2="120" stroke="var(--line-strong)" stroke-width="1" stroke-dasharray="4 4"/>
+        <polyline fill="none" stroke="var(--s1)" stroke-width="2" points="0,120 64,96 128,70 192,52 256,30 320,16"/>
+        <polyline fill="none" stroke="var(--s2)" stroke-width="2" points="0,120 64,110 128,104 192,88 256,76 320,62"/>
+        <polyline fill="none" stroke="var(--s3)" stroke-width="2" points="0,120 64,128 128,118 192,110 256,92 320,80"/>
+        <polyline fill="none" stroke="var(--s4)" stroke-width="2" points="0,120 64,146 128,168 192,178 256,186 320,194"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 統計 -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-value">514</div><div class="stat-label">総対局数</div></div>
+    <div class="stat-card"><div class="stat-value">14</div><div class="stat-label">参加人数</div></div>
+  </div>
+
+  <!-- 通算成績ランキング -->
+  <div class="card">
+    <div class="card-header">通算成績ランキング</div>
+    <div class="tab-bar-sub" role="tablist">
+      <button class="tab-sub" role="tab" aria-selected="true">総合</button>
+      <button class="tab-sub" role="tab" aria-selected="false">3人打ち</button>
+      <button class="tab-sub" role="tab" aria-selected="false">4人打ち</button>
+    </div>
+    <div class="rows">
+      <div class="rw"><span class="rank-badge r1">1</span><span class="grow"><span class="rw-name">谷口</span><span class="rw-sub" style="display:block">148戦</span></span><span class="rw-val pos">+167,980</span></div>
+      <div class="rw"><span class="rank-badge r2">2</span><span class="grow"><span class="rw-name">安部</span><span class="rw-sub" style="display:block">162戦</span></span><span class="rw-val pos">+138,370</span></div>
+      <div class="rw"><span class="rank-badge r3">3</span><span class="grow"><span class="rw-name">土井</span><span class="rw-sub" style="display:block">37戦</span></span><span class="rw-val pos">+12,870</span></div>
+      <div class="rw"><span class="rank">4</span><span class="grow"><span class="rw-name">金子</span><span class="rw-sub" style="display:block">22戦</span></span><span class="rw-val pos">+9,050</span></div>
+      <div class="rw"><span class="rank">5</span><span class="grow"><span class="rw-name">坂井</span><span class="rw-sub" style="display:block">88戦</span></span><span class="rw-val neg">−29,410</span></div>
+      <div class="rw"><span class="rank">6</span><span class="grow"><span class="rw-name">中田</span><span class="rw-sub" style="display:block">121戦</span></span><span class="rw-val neg">−60,010</span></div>
+      <div class="rw"><span class="rank">7</span><span class="grow"><span class="rw-name">酒井</span><span class="rw-sub" style="display:block">96戦</span></span><span class="rw-val neg">−104,830</span></div>
+    </div>
+  </div>
+
+  <!-- チップ枚数ランキング -->
+  <div class="card">
+    <div class="card-header">チップ枚数ランキング</div>
+    <div class="rows">
+      <div class="rw"><span class="rank-badge r1">1</span><span class="rw-name grow">安部</span><span class="rw-val pos">+38 枚</span></div>
+      <div class="rw"><span class="rank-badge r2">2</span><span class="rw-name grow">井上</span><span class="rw-val pos">+12 枚</span></div>
+      <div class="rw"><span class="rank-badge r3">3</span><span class="rw-name grow">谷口</span><span class="rw-val neg">−9 枚</span></div>
+      <div class="rw"><span class="rank">4</span><span class="rw-name grow">豊田</span><span class="rw-val neg">−41 枚</span></div>
+    </div>
+  </div>
+
+  <!-- 掲示板・メモ -->
+  <div class="card">
+    <div class="card-header">掲示板・メモ</div>
+    <div class="rows">
+      <div class="rw"><span class="grow"><span class="note">今日は19時集合でお願いします</span><span class="rw-sub" style="display:block">安部 · 10/8 09:12</span></span><button class="btn btn-danger btn-sm">削除</button></div>
+      <div class="rw"><span class="grow"><span class="note">チップ単価は300ptで固定にしましょう</span><span class="rw-sub" style="display:block">井上 · 10/6 21:40</span></span><button class="btn btn-danger btn-sm">削除</button></div>
+    </div>
+    <hr class="hr">
+    <div class="form-group">
+      <label class="form-label">名前（任意）</label>
+      <input class="form-input" placeholder="あなたの名前">
+    </div>
+    <div class="form-group">
+      <label class="form-label">内容</label>
+      <textarea class="form-input" placeholder="メモを入力..."></textarea>
+    </div>
+    <button class="btn btn-primary">メモを投稿</button>
+  </div>
+
+</div>
+
+<!--NAV:home-->
+<div class="toast show" style="opacity:0;pointer-events:none">保存しました</div>

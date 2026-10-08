@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>シーズン管理 | B案 雀卓</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../parts/tokens-b.css">
+<link rel="stylesheet" href="../parts/ui.css">
+</head>
+<body>
+<!-- シーズン一覧: past.html と同じ並び順（シーズン追加 / 一覧 / 全シーズン通算 / 全シーズンチップ / ホームに戻る） -->
+<header class="header">
+  <svg class="logo-mark" viewBox="0 0 18 24" aria-hidden="true">
+    <rect x="0.75" y="0.75" width="16.5" height="22.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="4.5" y="5" width="9" height="1.6" rx="0.8"/><rect x="4.5" y="9" width="9" height="1.6" rx="0.8"/><rect x="4.5" y="13" width="9" height="1.6" rx="0.8"/>
+  </svg>
+  <div class="logo-type">公大中麻雀倶楽部</div>
+  <div class="season-tag">シーズン</div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <div class="card-header">シーズンを追加</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <input class="form-input" placeholder="例：シーズン4(令和9年度)">
+    </div>
+    <button class="btn btn-primary">追加</button>
+  </div>
+
+  <div class="season-card">
+    <div class="season-name">シーズン3(令和8年度)</div>
+    <div class="season-date">作成日：2026年5月27日</div>
+    <div class="season-actions">
+      <button class="btn btn-outline btn-sm" style="flex:1">ホームへ</button>
+      <button class="btn btn-danger btn-sm" style="flex:1">削除</button>
+    </div>
+  </div>
+  <div class="season-card">
+    <div class="season-name">シーズン2</div>
+    <div class="season-date">作成日：2026年5月27日</div>
+    <div class="season-actions">
+      <button class="btn btn-outline btn-sm" style="flex:1">ホームへ</button>
+      <button class="btn btn-danger btn-sm" style="flex:1">削除</button>
+    </div>
+  </div>
+  <div class="season-card">
+    <div class="season-name">シーズン1</div>
+    <div class="season-date">作成日：2026年5月27日</div>
+    <div class="season-actions">
+      <button class="btn btn-outline btn-sm" style="flex:1">ホームへ</button>
+      <button class="btn btn-danger btn-sm" style="flex:1">削除</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">全シーズン通算成績</div>
+    <div class="rows-head">
+      <span style="width:24px"></span><span class="grow">プレイヤー</span><span style="width:48px;text-align:right">対局数</span><span style="width:96px;text-align:right">総合収支 (pt)</span>
+    </div>
+    <div class="rows">
+      <div class="rw"><span class="rank-badge r1">1</span><span class="rw-name grow">井上</span><span class="rw-sub" style="width:48px;text-align:right">396</span><span class="rw-val pos" style="width:96px">+403,780</span></div>
+      <div class="rw"><span class="rank-badge r2">2</span><span class="rw-name grow">安部</span><span class="rw-sub" style="width:48px;text-align:right">410</span><span class="rw-val pos" style="width:96px">+329,780</span></div>
+      <div class="rw"><span class="rank-badge r3">3</span><span class="rw-name grow">坂井</span><span class="rw-sub" style="width:48px;text-align:right">88</span><span class="rw-val pos" style="width:96px">+52,430</span></div>
+      <div class="rw"><span class="rank">4</span><span class="rw-name grow">谷口</span><span class="rw-sub" style="width:48px;text-align:right">352</span><span class="rw-val pos" style="width:96px">+21,780</span></div>
+      <div class="rw"><span class="rank">5</span><span class="rw-name grow">金子</span><span class="rw-sub" style="width:48px;text-align:right">49</span><span class="rw-val neg" style="width:96px">−81,700</span></div>
+      <div class="rw"><span class="rank">6</span><span class="rw-name grow">中田</span><span class="rw-sub" style="width:48px;text-align:right">265</span><span class="rw-val neg" style="width:96px">−100,210</span></div>
+      <div class="rw"><span class="rank">7</span><span class="rw-name grow">酒井</span><span class="rw-sub" style="width:48px;text-align:right">96</span><span class="rw-val neg" style="width:96px">−104,830</span></div>
+      <div class="rw"><span class="rank">8</span><span class="rw-name grow">豊田</span><span class="rw-sub" style="width:48px;text-align:right">318</span><span class="rw-val neg" style="width:96px">−321,940</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">全シーズンチップ枚数ランキング</div>
+    <div class="rows">
+      <div class="rw"><span class="rank-badge r1">1</span><span class="rw-name grow">安部</span><span class="rw-val pos">+112 枚</span></div>
+      <div class="rw"><span class="rank-badge r2">2</span><span class="rw-name grow">井上</span><span class="rw-val pos">+64 枚</span></div>
+      <div class="rw"><span class="rank-badge r3">3</span><span class="rw-name grow">坂井</span><span class="rw-val pos">+8 枚</span></div>
+      <div class="rw"><span class="rank">4</span><span class="rw-name grow">谷口</span><span class="rw-val neg">−39 枚</span></div>
+      <div class="rw"><span class="rank">5</span><span class="rw-name grow">豊田</span><span class="rw-val neg">−145 枚</span></div>
+    </div>
+  </div>
+
+  <a class="btn btn-outline" href="home.html">ホームに戻る</a>
+
+</div>
+
+</body>
+</html>
