@@ -1,0 +1,146 @@
+[
+  {
+    "page": "home",
+    "vp": "375",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "input",
+    "vp": "375",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "stats",
+    "vp": "375",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "seasons",
+    "vp": "375",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "home",
+    "vp": "430",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "input",
+    "vp": "430",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "stats",
+    "vp": "430",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "seasons",
+    "vp": "430",
+    "scheme": "light",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "home",
+    "vp": "375",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "input",
+    "vp": "375",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "stats",
+    "vp": "375",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "seasons",
+    "vp": "375",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 375,
+    "clientW": 375,
+    "errors": []
+  },
+  {
+    "page": "home",
+    "vp": "430",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "input",
+    "vp": "430",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "stats",
+    "vp": "430",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  },
+  {
+    "page": "seasons",
+    "vp": "430",
+    "scheme": "dark",
+    "overflow": false,
+    "scrollW": 430,
+    "clientW": 430,
+    "errors": []
+  }
+]

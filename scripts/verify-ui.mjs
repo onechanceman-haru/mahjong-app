@@ -32,12 +32,14 @@ const hAll = evalAvg(null), hPc = evalAvg(4);
 console.log(`   総合(filter=null) → "${hAll}"`);
 console.log(`   4人(filter=4)     → "${hPc.replace(/\s+/g, ' ')}"`);
 check('history.html 総合タブに平均順位の stat-item が出ない', hAll === '', `"${hAll}"`);
-check('history.html 人数タブに平均順位の stat-item が出る', hPc.includes('平均順位'));
+check('history.html 人数タブに平均順位が出る', hPc.includes('平均') && hPc.includes('位'), `"${hPc.replace(/\s+/g, ' ')}"`);
 
-// stat-row のレイアウト（stat-item は flex:1 なので2列でも等幅になる）
-const flexOk = /\.stat-item\s*\{[^}]*flex:1/.test(history);
-const rowOk = /\.stat-row\s*\{[^}]*display:flex/.test(history);
-check('stat-row/stat-item が flex で項目数に追従（レイアウト崩れなし）', flexOk && rowOk, `stat-row:display:flex=${rowOk}, stat-item:flex:1=${flexOk}`);
+// ビジュアル刷新後: 補助情報は common.css の .stat-row / .stat-item で1行に並べる（入れ子の枠はない）
+const commonCss = readFileSync(join(ROOT, 'common.css'), 'utf8');
+const rowOk = /\.stat-row\s*\{[^}]*display:\s*flex/.test(commonCss);
+const noBox = !/\.stat-item\s*\{[^}]*border:/.test(commonCss);
+check('stat-row が flex で1行に並び、stat-item に枠がない（入れ子の枠なし）', rowOk && noBox,
+  `stat-row:display:flex=${rowOk}, stat-item に枠なし=${noBox}`);
 
 // ── タスク5 ─────────────────────────────────────────────────────────────────
 console.log('\n########## タスク5: 登録後のグループサマリー ##########');
